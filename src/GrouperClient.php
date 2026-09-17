@@ -42,8 +42,6 @@ use Psr\Http\Message\ResponseInterface;
  */
 final readonly class GrouperClient
 {
-    private const string GROUPS_RESOURCE = 'groups';
-
     /** getGroupsLite — the groups a subject belongs to. */
     private const string GET_GROUPS_OBJECT_TYPE = 'WsRestGetGroupsLiteRequest';
 
@@ -64,10 +62,7 @@ final readonly class GrouperClient
      */
     public function groupsFor(string $username): GroupMembership|GrouperUnavailable
     {
-        $params = [
-            'wsLiteObjectType' => self::GET_GROUPS_OBJECT_TYPE,
-            'subjectIdentifier' => $username,
-        ];
+        $params = ['wsLiteObjectType' => self::GET_GROUPS_OBJECT_TYPE];
 
         // stemName is optional in Grouper's own specification. With no stem
         // configured this asks for every group the user belongs to
@@ -78,7 +73,7 @@ final readonly class GrouperClient
             $params['stemScope'] = 'ALL_IN_SUBTREE';
         }
 
-        $response = $this->post($params);
+        $response = $this->post('subjects/'.rawurlencode($username).'/groups', $params);
 
         if ($response instanceof GrouperUnavailable) {
             return $response;
@@ -104,7 +99,7 @@ final readonly class GrouperClient
      */
     public function groupExists(string $identifier): bool|GrouperUnavailable
     {
-        $response = $this->post([
+        $response = $this->post('groups', [
             'wsLiteObjectType' => self::FIND_GROUPS_OBJECT_TYPE,
             'queryFilterType' => 'FIND_BY_GROUP_NAME_EXACT',
             // Grouper documents groupName as mutually exclusive with the other
@@ -140,11 +135,12 @@ final readonly class GrouperClient
      * findGroupsLite means "no such group", while the same status from
      * getGroupsLite means the integration is pointed somewhere wrong.
      *
+     * @param  string  $resourcePath  Path below the version segment, already URL-encoded.
      * @param  array<string, string>  $formParams
      */
-    private function post(array $formParams): ResponseInterface|GrouperUnavailable
+    private function post(string $resourcePath, array $formParams): ResponseInterface|GrouperUnavailable
     {
-        $url = sprintf('%s/%s/%s', $this->config->serviceUrl, $this->config->clientVersion, self::GROUPS_RESOURCE);
+        $url = sprintf('%s/%s/%s', $this->config->serviceUrl, $this->config->clientVersion, $resourcePath);
 
         try {
             return $this->http->request('POST', $url, [

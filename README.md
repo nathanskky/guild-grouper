@@ -88,8 +88,8 @@ moving to a newer contract is a configuration change rather than a code change.
 
 - **With a stem**, the lookup is scoped to that subtree (`stemScope=ALL_IN_SUBTREE`) — faster, and it
   returns only groups the application has a reason to see.
-- **Without one**, Grouper returns every group the user belongs to, institution-wide. That is a broad and
-  slow query. Prefer a stem when you know one.
+- **Without one**, Grouper returns every group the user belongs to, institution-wide. Measured against a
+  real IU account that is 357 groups and 5.6 seconds. Prefer a stem when you know one.
 
 IU applications commonly query shared institutional stems rather than owning a subtree of their own —
 `iu:roles:sys:acm` (ACM roles) and `iu:bundles` (compliance bundles) are the usual ones. In that model the
@@ -110,11 +110,13 @@ proxy, or retries to suit the deployment:
 use GuzzleHttp\Client;
 use Guild\Grouper\GrouperClient;
 
-$client = new GrouperClient($config, new Client(['timeout' => 5]));
+$client = new GrouperClient($config, new Client(['timeout' => 30]));
 ```
 
-Set a timeout you are happy to have an authorization check wait for. Guzzle's default is no timeout at
-all, which makes an unresponsive Grouper indistinguishable from a hung request.
+Set a timeout you are happy to have an authorization check wait for, and **measure before choosing a
+small one**. An unscoped lookup against a real account with 357 groups took **5.6 seconds**; a stem-scoped
+one is far quicker. Guzzle's default is no timeout at all, which makes an unresponsive Grouper
+indistinguishable from a hung request.
 
 ## `groupsFor()`
 

@@ -40,9 +40,9 @@ final class GrouperClientTest extends TestCase
 
         self::assertSame('POST', $request->getMethod(), 'every Grouper v4 operation is POST; no GET operation exists');
         self::assertStringEndsWith(
-            '/v2_5_000/groups',
+            '/v2_5_000/subjects/jdoe/groups',
             $request->getUri()->getPath(),
-            'the path segment is the client version, uniform across operations',
+            'the subject is addressed by path; Grouper routes on URL segments',
         );
         self::assertSame(
             'application/x-www-form-urlencoded',
@@ -62,14 +62,18 @@ final class GrouperClientTest extends TestCase
 
         $body = $this->lastRequestBody();
 
-        self::assertSame('jdoe', $body['subjectIdentifier'] ?? null, 'the username is looked up as a subject identifier');
+        self::assertArrayNotHasKey(
+            'subjectIdentifier',
+            $body,
+            'the subject travels in the path, not the form body',
+        );
         self::assertSame('iu:apps:x', $body['stemName'] ?? null, 'queries are scoped to the configured stem');
         self::assertSame(
             'ALL_IN_SUBTREE',
             $body['stemScope'] ?? null,
             'Grouper requires stemScope whenever a stem is passed',
         );
-        self::assertArrayNotHasKey('subjectId', $body, 'subjectId and subjectIdentifier are mutually exclusive');
+        self::assertArrayNotHasKey('subjectId', $body, 'the subject travels in the path');
     }
 
     public function test_it_uses_the_configured_service_url_as_the_base(): void
@@ -77,11 +81,25 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
 
         self::assertSame(
-            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v2_5_000/groups',
+            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v2_5_000/subjects/jdoe/groups',
             (string) $this->lastRequest()->getUri(),
         );
     }
 
+
+    /**
+     * The subject is a path segment, so anything Grouper accepts as a subject
+     * identifier has to survive URL encoding.
+     */
+    public function test_it_url_encodes_the_subject_in_the_path(): void
+    {
+        $this->clientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('doe/jane smith');
+
+        self::assertStringEndsWith(
+            '/subjects/doe%2Fjane%20smith/groups',
+            $this->lastRequest()->getUri()->getPath(),
+        );
+    }
 
     // -- groupsFor: the four outcomes --------------------------------------
 
@@ -210,7 +228,6 @@ final class GrouperClientTest extends TestCase
 
         $body = $this->lastRequestBody();
 
-        self::assertSame('jdoe', $body['subjectIdentifier'] ?? null);
         self::assertArrayNotHasKey('stemName', $body, 'no stem configured means no stemName sent');
         self::assertArrayNotHasKey('stemScope', $body, 'stemScope is meaningless without a stem');
     }
@@ -336,7 +353,7 @@ final class GrouperClientTest extends TestCase
 
         (new GrouperClient($config, new Client(['handler' => $stack])))->groupsFor('jdoe');
 
-        self::assertStringEndsWith('/v4_0_000/groups', $this->lastRequest()->getUri()->getPath());
+        self::assertStringEndsWith('/v4_0_000/subjects/jdoe/groups', $this->lastRequest()->getUri()->getPath());
     }
 
     // -- helpers -----------------------------------------------------------

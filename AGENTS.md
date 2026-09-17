@@ -173,11 +173,15 @@ the base URL once rather than per operation, the operation is named in the reque
 and Grouper's envelopes are worth flattening into small DTOs. Their `v2_5_000` is also where this
 library's default client version comes from — it is the version IU's deployment is known to accept.
 
-## Fixtures are synthetic
+## Fixtures
 
-**`tests/fixture/*.json` are hand-written from the published Swagger definitions, not recorded from a
-live Grouper.** They prove the library parses the documented shape. They cannot prove Grouper actually
-emits that shape.
+**`tests/fixture/membership-two-groups.json` carries the envelope of a real recorded response** — the
+nine-field `WsGroup`, the five-field `wsSubject`, and the real `resultMetadata`/`responseMetadata` shape
+from Grouper 4.24.0. **The group identities in it are anonymised**, so the file does not publish one
+person's institutional access; keep it that way when re-recording.
+
+Its second group deliberately omits `description`, because 4 of 357 groups in the recorded response had
+none. That is the case `GrouperGroup::$description` being nullable exists for.
 
 Until the package has been exercised against a real service account, three things are unverified:
 
