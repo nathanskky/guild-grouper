@@ -12,6 +12,10 @@ Its consumer is the framework's authorization layer. It is not an app-developer-
 takes no position on what an application should do when Grouper is unreachable — it reports the condition
 and lets the caller decide.
 
+> **Pre-1.0.** The public API is verified against IU's production Grouper and the test suite is green,
+> but the version is deliberately `0.x` pending a full code review. Treat minor releases as potentially
+> breaking until `1.0.0`.
+
 ## Requirements
 
 - PHP `~8.5.0`
@@ -33,7 +37,7 @@ Add the repository, then require the package:
 ```
 
 ```bash
-composer require guild/grouper:^1.0
+composer require guild/grouper:^0.1
 ```
 
 ## Configuration

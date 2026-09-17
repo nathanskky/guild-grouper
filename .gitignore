@@ -3,9 +3,3 @@
 composer.lock
 .DS_Store
 *.env*
-
-# Local Task 7 verification harness (untracked; reads credentials from env)
-/probe-grouper.php
-/probe-grouper2.php
-/probe-grouper3.php
-/probe-grouper4.php
