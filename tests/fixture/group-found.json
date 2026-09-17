@@ -1,24 +1,25 @@
 {
   "WsFindGroupsResults": {
     "resultMetadata": {
-      "success": "T",
       "resultCode": "SUCCESS",
-      "resultMessage": "Found 1 group"
+      "resultMessage": "Success for: clientVersion: 2.5.0",
+      "success": "T"
     },
     "responseMetadata": {
-      "millis": "12",
-      "serverVersion": "4.0.000"
+      "millis": "63",
+      "serverVersion": "4.24.0"
     },
     "groupResults": [
       {
-        "name": "iu:apps:x:editors",
-        "displayName": "Indiana University:Applications:X:Editors",
-        "uuid": "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa1",
         "description": "People who may edit content in X",
-        "extension": "editors",
         "displayExtension": "Editors",
+        "displayName": "Indiana University:Applications:X:Editors",
+        "enabled": "T",
+        "extension": "editors",
+        "idIndex": "10001",
+        "name": "iu:apps:x:editors",
         "typeOfGroup": "group",
-        "enabled": "T"
+        "uuid": "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa1"
       }
     ]
   }

@@ -247,18 +247,25 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $this->fixture('group-found'))->groupExists('iu:apps:x:editors');
 
         $request = $this->lastRequest();
-        $body = $this->lastRequestBody();
 
         self::assertStringEndsWith(
             '/v2_5_000/groups',
             $request->getUri()->getPath(),
-            'both operations post to the same resource under the same client version',
+            'findGroups is addressed at the groups resource, with no subject in the path',
         );
-        self::assertSame('FIND_BY_GROUP_NAME_EXACT', $body['queryFilterType'] ?? null);
-        self::assertSame('iu:apps:x:editors', $body['groupName'] ?? null);
+        self::assertSame(
+            'application/json',
+            $request->getHeaderLine('Content-Type'),
+            'findGroups takes a JSON body; only getGroups uses the form-encoded Lite shape',
+        );
+
+        $filter = $this->lastRequestJson()['WsRestFindGroupsRequest']['wsQueryFilter'] ?? [];
+
+        self::assertSame('FIND_BY_GROUP_NAME_EXACT', $filter['queryFilterType'] ?? null);
+        self::assertSame('iu:apps:x:editors', $filter['groupName'] ?? null);
         self::assertArrayNotHasKey(
             'stemName',
-            $body,
+            $filter,
             'Grouper documents groupName as unusable alongside other search params',
         );
     }
@@ -278,15 +285,14 @@ final class GrouperClientTest extends TestCase
     }
 
     /**
-     * Unlike getGroupsLite, findGroupsLite declares an explicit 404 schema, so
-     * a 404 here is a meaningful "no such group" rather than a broken route.
+     * Grouper answers a missing group with success="T" and no groupResults key
+     * at all -- not an empty array, and not a 404.
      */
-    public function test_group_exists_treats_a_404_as_absent_rather_than_a_failure(): void
+    public function test_group_exists_is_false_when_group_results_is_absent_entirely(): void
     {
-        $result = $this->clientReturning(404, '{"WsFindGroupsResults":{"resultMetadata":{"success":"F"}}}')
-            ->groupExists('iu:apps:x:typo');
+        $body = '{"WsFindGroupsResults":{"resultMetadata":{"success":"T","resultCode":"SUCCESS"}}}';
 
-        self::assertFalse($result);
+        self::assertFalse($this->clientReturning(200, $body)->groupExists('iu:apps:x:typo'));
     }
 
     public function test_group_exists_returns_unavailable_on_a_server_error(): void
@@ -320,15 +326,16 @@ final class GrouperClientTest extends TestCase
         );
     }
 
-    public function test_group_exists_names_its_own_lite_operation(): void
+    /**
+     * The two operations name themselves differently because they use different
+     * transports: getGroups is form-encoded and names itself in
+     * wsLiteObjectType, findGroups is JSON and names itself in the wrapper key.
+     */
+    public function test_group_exists_names_its_operation_in_the_json_wrapper(): void
     {
         $this->clientReturning(200, $this->fixture('group-found'))->groupExists('iu:apps:x:editors');
 
-        self::assertSame(
-            'WsRestFindGroupsLiteRequest',
-            $this->lastRequestBody()['wsLiteObjectType'] ?? null,
-            'the discriminator is what separates findGroupsLite from getGroupsLite',
-        );
+        self::assertArrayHasKey('WsRestFindGroupsRequest', $this->lastRequestJson());
     }
 
     /**
@@ -409,6 +416,18 @@ final class GrouperClientTest extends TestCase
         self::assertNotEmpty($this->history, 'expected the client to have issued a request');
 
         return $this->history[array_key_last($this->history)]['request'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function lastRequestJson(): array
+    {
+        $decoded = json_decode((string) $this->lastRequest()->getBody(), true);
+        self::assertIsArray($decoded, 'expected a JSON request body');
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 
     /**

@@ -45,8 +45,8 @@ final readonly class GrouperClient
     /** getGroupsLite — the groups a subject belongs to. */
     private const string GET_GROUPS_OBJECT_TYPE = 'WsRestGetGroupsLiteRequest';
 
-    /** findGroupsLite — group lookup by name. */
-    private const string FIND_GROUPS_OBJECT_TYPE = 'WsRestFindGroupsLiteRequest';
+    /** findGroups — group lookup by name, sent as a JSON body. */
+    private const string FIND_GROUPS_REQUEST = 'WsRestFindGroupsRequest';
 
     public function __construct(
         private GrouperConfiguration $config,
@@ -73,7 +73,7 @@ final readonly class GrouperClient
             $params['stemScope'] = 'ALL_IN_SUBTREE';
         }
 
-        $response = $this->post('subjects/'.rawurlencode($username).'/groups', $params);
+        $response = $this->post('subjects/'.rawurlencode($username).'/groups', ['form_params' => $params]);
 
         if ($response instanceof GrouperUnavailable) {
             return $response;
@@ -99,23 +99,22 @@ final readonly class GrouperClient
      */
     public function groupExists(string $identifier): bool|GrouperUnavailable
     {
-        $response = $this->post('groups', [
-            'wsLiteObjectType' => self::FIND_GROUPS_OBJECT_TYPE,
-            'queryFilterType' => 'FIND_BY_GROUP_NAME_EXACT',
-            // Grouper documents groupName as mutually exclusive with the other
-            // search parameters, so the configured stem is deliberately not
-            // sent here. Callers pass fully qualified identifiers anyway.
-            'groupName' => $identifier,
-        ]);
+        // findGroups takes a JSON body rather than the form-encoded Lite shape
+        // that groupsFor() uses. The two operations genuinely differ here.
+        $response = $this->post('groups', ['json' => [
+            self::FIND_GROUPS_REQUEST => [
+                'wsQueryFilter' => [
+                    'queryFilterType' => 'FIND_BY_GROUP_NAME_EXACT',
+                    // Grouper documents groupName as mutually exclusive with the
+                    // other search parameters, so the configured stem is not sent
+                    // here. Callers pass fully qualified identifiers anyway.
+                    'groupName' => $identifier,
+                ],
+            ],
+        ]]);
 
         if ($response instanceof GrouperUnavailable) {
             return $response;
-        }
-
-        // findGroupsLite declares an explicit 404 schema, unlike getGroupsLite.
-        // Here that status is a meaningful "no such group", not a broken route.
-        if ($response->getStatusCode() === 404) {
-            return false;
         }
 
         $result = $this->resultOrFail((string) $response->getBody(), 'WsFindGroupsResults');
@@ -136,16 +135,15 @@ final readonly class GrouperClient
      * getGroupsLite means the integration is pointed somewhere wrong.
      *
      * @param  string  $resourcePath  Path below the version segment, already URL-encoded.
-     * @param  array<string, string>  $formParams
+     * @param  array{form_params?: array<string, string>, json?: array<string, mixed>}  $body
      */
-    private function post(string $resourcePath, array $formParams): ResponseInterface|GrouperUnavailable
+    private function post(string $resourcePath, array $body): ResponseInterface|GrouperUnavailable
     {
         $url = sprintf('%s/%s/%s', $this->config->serviceUrl, $this->config->clientVersion, $resourcePath);
 
         try {
-            return $this->http->request('POST', $url, [
+            return $this->http->request('POST', $url, $body + [
                 'auth' => [$this->config->username, $this->config->password],
-                'form_params' => $formParams,
             ]);
         } catch (ConnectException $e) {
             return new GrouperUnavailable('Could not connect to Grouper.', null, $e);

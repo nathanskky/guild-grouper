@@ -154,7 +154,10 @@ un-narrowed union, which is why the method returns a union rather than a result 
 public function groupExists(string $identifier): bool|GrouperUnavailable
 ```
 
-Whether a group with this exact identifier exists. Useful when an administrator registers a group by
+Whether a group with this exact identifier exists. Sent as a JSON `WsRestFindGroupsRequest`, unlike
+`groupsFor()`, which uses the form-encoded Lite shape — the two operations genuinely differ.
+
+Useful when an administrator registers a group by
 hand: a typo'd identifier is not an error anywhere else here, it simply matches nobody forever — which
 looks exactly like a correctly configured group that happens to be empty.
 
@@ -194,7 +197,7 @@ deployment run indefinitely with an authorization layer that silently denies eve
 | Connection failure, timeout | `GrouperUnavailable`, `statusCode` `null` |
 | HTTP 429, or any 5xx | `GrouperUnavailable` with the status |
 | HTTP 401, 403 | throws `GrouperConfigurationException` |
-| HTTP 404 from `groupExists()` | `false` — a meaningful "no such group" |
+| A group that does not exist | `false` — Grouper answers `success="T"` with no `groupResults` key |
 | 200 with `success="T"` | `GroupMembership` (possibly empty) |
 | 200 with `success="F"`, or an unrecognisable body | throws `GrouperResponseException` |
 
