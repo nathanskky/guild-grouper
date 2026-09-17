@@ -6,3 +6,4 @@ composer.lock
 
 # Local Task 7 verification harness (untracked; reads credentials from env)
 /probe-grouper.php
+/probe-grouper2.php
