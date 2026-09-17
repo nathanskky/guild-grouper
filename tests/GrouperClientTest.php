@@ -199,6 +199,70 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $body)->groupsFor('ghost');
     }
 
+    // -- groupExists -------------------------------------------------------
+
+    public function test_group_exists_queries_find_groups_by_exact_name(): void
+    {
+        $this->clientReturning(200, $this->fixture('group-found'))->groupExists('iu:apps:x:editors');
+
+        $request = $this->lastRequest();
+        $body = $this->lastRequestBody();
+
+        self::assertStringEndsWith(
+            '/v4_0_330/groups',
+            $request->getUri()->getPath(),
+            'findGroupsLite sits on a different version segment than getGroupsLite',
+        );
+        self::assertSame('FIND_BY_GROUP_NAME_EXACT', $body['queryFilterType'] ?? null);
+        self::assertSame('iu:apps:x:editors', $body['groupName'] ?? null);
+        self::assertArrayNotHasKey(
+            'stemName',
+            $body,
+            'Grouper documents groupName as unusable alongside other search params',
+        );
+    }
+
+    public function test_group_exists_is_true_when_grouper_returns_a_match(): void
+    {
+        $result = $this->clientReturning(200, $this->fixture('group-found'))->groupExists('iu:apps:x:editors');
+
+        self::assertTrue($result);
+    }
+
+    public function test_group_exists_is_false_for_an_empty_result(): void
+    {
+        $result = $this->clientReturning(200, $this->fixture('group-not-found'))->groupExists('iu:apps:x:typo');
+
+        self::assertFalse($result, 'a typo\'d group identifier must be reported, not silently matched by nobody');
+    }
+
+    /**
+     * Unlike getGroupsLite, findGroupsLite declares an explicit 404 schema, so
+     * a 404 here is a meaningful "no such group" rather than a broken route.
+     */
+    public function test_group_exists_treats_a_404_as_absent_rather_than_a_failure(): void
+    {
+        $result = $this->clientReturning(404, '{"WsFindGroupsResults":{"resultMetadata":{"success":"F"}}}')
+            ->groupExists('iu:apps:x:typo');
+
+        self::assertFalse($result);
+    }
+
+    public function test_group_exists_returns_unavailable_on_a_server_error(): void
+    {
+        $result = $this->clientReturning(500, '')->groupExists('iu:apps:x:editors');
+
+        self::assertInstanceOf(GrouperUnavailable::class, $result);
+        self::assertSame(500, $result->statusCode);
+    }
+
+    public function test_group_exists_throws_on_rejected_credentials(): void
+    {
+        $this->expectException(GrouperConfigurationException::class);
+
+        $this->clientReturning(401, '')->groupExists('iu:apps:x:editors');
+    }
+
     // -- helpers -----------------------------------------------------------
 
     private function validConfig(): GrouperConfiguration

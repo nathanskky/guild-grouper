@@ -1,0 +1,14 @@
+{
+  "WsFindGroupsResults": {
+    "resultMetadata": {
+      "success": "T",
+      "resultCode": "SUCCESS",
+      "resultMessage": "Found 0 groups"
+    },
+    "responseMetadata": {
+      "millis": "9",
+      "serverVersion": "4.0.000"
+    },
+    "groupResults": []
+  }
+}

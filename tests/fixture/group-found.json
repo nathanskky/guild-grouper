@@ -1,0 +1,25 @@
+{
+  "WsFindGroupsResults": {
+    "resultMetadata": {
+      "success": "T",
+      "resultCode": "SUCCESS",
+      "resultMessage": "Found 1 group"
+    },
+    "responseMetadata": {
+      "millis": "12",
+      "serverVersion": "4.0.000"
+    },
+    "groupResults": [
+      {
+        "name": "iu:apps:x:editors",
+        "displayName": "Indiana University:Applications:X:Editors",
+        "uuid": "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa1",
+        "description": "People who may edit content in X",
+        "extension": "editors",
+        "displayExtension": "Editors",
+        "typeOfGroup": "group",
+        "enabled": "T"
+      }
+    ]
+  }
+}

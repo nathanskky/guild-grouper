@@ -1,0 +1,161 @@
+# guild/grouper
+
+IU Grouper group-membership lookup for PHP.
+
+This package answers one question — *which groups does this IU username belong to?* — by calling the IU
+Grouper web services API.
+
+**It is read-only.** There is no `addMember()`, `removeMember()`, `createGroup()` or anything like them,
+and there will not be. Group membership is managed in Grouper itself. This library only reads.
+
+Its consumer is the framework's authorization layer. It is not an app-developer-facing service, and it
+takes no position on what an application should do when Grouper is unreachable — it reports the condition
+and lets the caller decide.
+
+## Requirements
+
+- PHP `~8.5.0`
+- A Grouper service account (username + password) authorised against the stem you configure.
+
+## Installation
+
+Add the repository, then require the package:
+
+```json
+{
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/nathanskky/guild-grouper.git"
+        }
+    ]
+}
+```
+
+```bash
+composer require guild/grouper:^1.0
+```
+
+## Configuration
+
+```php
+use Guild\Grouper\GrouperConfiguration;
+
+$config = new GrouperConfiguration(
+    serviceUrl: $_ENV['GROUPER_URL'],      // e.g. 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest'
+    username:   $_ENV['GROUPER_USER'],
+    password:   $_ENV['GROUPER_PASSWORD'],
+    stem:       $_ENV['GROUPER_STEM'],     // e.g. 'iu:apps:your-app'
+);
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `serviceUrl` | `string` | Base URL of the Grouper REST service, **without** a version segment — the client appends the right one per operation. Must be `https`; a trailing slash is stripped. |
+| `username` | `string` | Service-account username, sent as HTTP Basic auth. |
+| `password` | `string` | Service-account password. |
+| `stem` | `string` | The stem membership queries are scoped to. Required — without it a lookup would ask Grouper for a user's groups across the whole institution. |
+
+Invalid configuration throws `GrouperConfigurationException` at construction, so a misconfigured
+deployment fails at boot rather than on the first authorization check.
+
+## Constructing the client
+
+The Guzzle client is injected rather than built internally, so it can be configured with timeouts, a
+proxy, or retries to suit the deployment:
+
+```php
+use GuzzleHttp\Client;
+use Guild\Grouper\GrouperClient;
+
+$client = new GrouperClient($config, new Client(['timeout' => 5]));
+```
+
+Set a timeout you are happy to have an authorization check wait for. Guzzle's default is no timeout at
+all, which makes an unresponsive Grouper indistinguishable from a hung request.
+
+## `groupsFor()`
+
+```php
+public function groupsFor(string $username): GroupMembership|GrouperUnavailable
+```
+
+Returns the groups `$username` belongs to within the configured stem.
+
+**An empty group list is a successful answer**, not a failure. It means Grouper was reached and this user
+belongs to nothing here — the ordinary case for most people and most applications. Do not conflate it with
+`GrouperUnavailable`, which means the answer is unknown.
+
+```php
+$result = $client->groupsFor('jdoe');
+
+if ($result instanceof GrouperUnavailable) {
+    // Grouper could not be reached. Your policy decision, not this library's:
+    // deny everything, serve a cached answer, or degrade to read-only.
+    $logger->warning('Grouper unavailable', ['reason' => $result->reason]);
+
+    return false;
+}
+
+// $result is a GroupMembership from here on.
+return $result->belongsTo('iu:apps:your-app:editors');
+```
+
+The `instanceof` check is not optional politeness. PHPStan at level `max` rejects `->groups` on the
+un-narrowed union, which is why the method returns a union rather than a result object.
+
+## `groupExists()`
+
+```php
+public function groupExists(string $identifier): bool|GrouperUnavailable
+```
+
+Whether a group with this exact identifier exists. Useful when an administrator registers a group by
+hand: a typo'd identifier is not an error anywhere else here, it simply matches nobody forever — which
+looks exactly like a correctly configured group that happens to be empty.
+
+`GrouperUnavailable` is deliberately not folded into `false`, because "this group does not exist" and "I
+could not ask" should not be indistinguishable. Only one of them means somebody has to go fix something.
+
+```php
+$exists = $client->groupExists('iu:apps:your-app:editors');
+
+if ($exists instanceof GrouperUnavailable) {
+    // Unknown — do not tell the administrator their group is missing.
+} elseif (! $exists) {
+    // Genuinely no such group. Probably a typo.
+}
+```
+
+## Return and error types
+
+| Type | Meaning |
+|------|---------|
+| `GroupMembership` | A username and its `list<GrouperGroup>`. `belongsTo(string $identifier): bool` matches on the group's **system name**, not its display name. An empty list is valid. |
+| `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:apps:x:editors`), `displayName`, `uuid`, and an optional `description`. |
+| `GrouperUnavailable` | **Returned, not thrown.** Grouper could not be reached; membership is unknown. Carries `reason`, an optional `statusCode`, and the optional underlying `previous` throwable. |
+| `GrouperConfigurationException` | **Thrown.** Extends `LogicException`. Bad configuration, or credentials Grouper rejected (401/403) — a deployment error a human must fix. |
+| `GrouperResponseException` | **Thrown.** Extends `RuntimeException`. Grouper answered with something unrecognisable, or reported `success="F"`. Carries Grouper's `resultCode` and `resultMessage`. |
+
+The rule behind that table: **conditions that may clear on their own are returned; conditions a human
+must fix are thrown.**
+
+Rejected credentials are thrown on purpose. Degrading them to a transient "unavailable" would let a
+deployment run indefinitely with an authorization layer that silently denies everyone.
+
+### How outcomes map
+
+| Condition | Result |
+|---|---|
+| Connection failure, timeout | `GrouperUnavailable`, `statusCode` `null` |
+| HTTP 429, or any 5xx | `GrouperUnavailable` with the status |
+| HTTP 401, 403 | throws `GrouperConfigurationException` |
+| HTTP 404 from `groupExists()` | `false` — a meaningful "no such group" |
+| 200 with `success="T"` | `GroupMembership` (possibly empty) |
+| 200 with `success="F"`, or an unrecognisable body | throws `GrouperResponseException` |
+
+## Not in scope
+
+- **Caching.** Every call hits Grouper. Caching policy belongs to the consumer.
+- **Deciding what to do when Grouper is down.** This library reports reachability; the framework decides.
+- **Group management.** Read-only, as above.

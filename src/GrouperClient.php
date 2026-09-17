@@ -38,6 +38,12 @@ final readonly class GrouperClient
      */
     private const string GET_GROUPS_PATH = '/v4_0_440/groups';
 
+    /**
+     * findGroupsLite — group lookup. Note this is a *different* version segment
+     * than getGroupsLite above; Grouper versions each operation independently.
+     */
+    private const string FIND_GROUPS_PATH = '/v4_0_330/groups';
+
     public function __construct(
         private GrouperConfiguration $config,
         private ClientInterface $http,
@@ -65,6 +71,44 @@ final readonly class GrouperClient
         $result = $this->resultOrFail((string) $response->getBody(), 'WsGetGroupsLiteResult');
 
         return new GroupMembership($username, $this->groupsFrom($result, 'wsGroups'));
+    }
+
+    /**
+     * Whether a group with this exact identifier exists in Grouper.
+     *
+     * Worth calling when an administrator registers a group by hand: a typo'd
+     * identifier is not an error anywhere else in this library, it simply
+     * matches nobody forever, which looks identical to a correctly configured
+     * group that happens to be empty.
+     *
+     * Returns GrouperUnavailable when the answer is unknown. It is deliberately
+     * not folded into `false` — "this group does not exist" and "I could not
+     * ask" would otherwise be indistinguishable, and only one of them should
+     * make an administrator go fix something.
+     */
+    public function groupExists(string $identifier): bool|GrouperUnavailable
+    {
+        $response = $this->post(self::FIND_GROUPS_PATH, [
+            'queryFilterType' => 'FIND_BY_GROUP_NAME_EXACT',
+            // Grouper documents groupName as mutually exclusive with the other
+            // search parameters, so the configured stem is deliberately not
+            // sent here. Callers pass fully qualified identifiers anyway.
+            'groupName' => $identifier,
+        ]);
+
+        if ($response instanceof GrouperUnavailable) {
+            return $response;
+        }
+
+        // findGroupsLite declares an explicit 404 schema, unlike getGroupsLite.
+        // Here that status is a meaningful "no such group", not a broken route.
+        if ($response->getStatusCode() === 404) {
+            return false;
+        }
+
+        $result = $this->resultOrFail((string) $response->getBody(), 'WsFindGroupsResults');
+
+        return $this->groupsFrom($result, 'groupResults') !== [];
     }
 
     /**
