@@ -199,6 +199,30 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $body)->groupsFor('ghost');
     }
 
+    /**
+     * With no stem configured the client must omit stemName *and* stemScope.
+     * Grouper documents stemScope as meaningful only alongside a stem, and an
+     * empty stemName would be rejected outright.
+     */
+    public function test_an_unscoped_lookup_omits_the_stem_parameters(): void
+    {
+        $this->unscopedClientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
+
+        $body = $this->lastRequestBody();
+
+        self::assertSame('jdoe', $body['subjectIdentifier'] ?? null);
+        self::assertArrayNotHasKey('stemName', $body, 'no stem configured means no stemName sent');
+        self::assertArrayNotHasKey('stemScope', $body, 'stemScope is meaningless without a stem');
+    }
+
+    public function test_an_unscoped_lookup_still_returns_membership(): void
+    {
+        $result = $this->unscopedClientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
+
+        self::assertInstanceOf(GroupMembership::class, $result);
+        self::assertCount(2, $result->groups);
+    }
+
     // -- groupExists -------------------------------------------------------
 
     public function test_group_exists_queries_find_groups_by_exact_name(): void
@@ -283,6 +307,22 @@ final class GrouperClientTest extends TestCase
         $stack->push(Middleware::history($this->history));
 
         return new GrouperClient($this->validConfig(), new Client(['handler' => $stack]));
+    }
+
+    private function unscopedClientReturning(int $status, string $body): GrouperClient
+    {
+        $this->history = [];
+
+        $stack = HandlerStack::create(new MockHandler([new Response($status, [], $body)]));
+        $stack->push(Middleware::history($this->history));
+
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'secret',
+        );
+
+        return new GrouperClient($config, new Client(['handler' => $stack]));
     }
 
     private function clientThrowing(\Throwable $error): GrouperClient

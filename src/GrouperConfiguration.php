@@ -19,11 +19,19 @@ final readonly class GrouperConfiguration
      */
     public string $serviceUrl;
 
+    /**
+     * The stem membership queries are scoped to, or null for an unscoped,
+     * institution-wide lookup. Blank input is normalised to null: a blank stem
+     * is far more often an unset environment variable than a deliberate choice,
+     * and sending an empty stemName would be rejected by Grouper anyway.
+     */
+    public ?string $stem;
+
     public function __construct(
         string $serviceUrl,
         public string $username,
         public string $password,
-        public string $stem,
+        ?string $stem = null,
     ) {
         if (trim($serviceUrl) === '') {
             throw new GrouperConfigurationException('Grouper service URL is required.');
@@ -37,10 +45,7 @@ final readonly class GrouperConfiguration
             throw new GrouperConfigurationException('Grouper service-account username and password are both required.');
         }
 
-        if (trim($stem) === '') {
-            throw new GrouperConfigurationException('Grouper stem is required; queries are stem-scoped.');
-        }
-
         $this->serviceUrl = rtrim(trim($serviceUrl), '/');
+        $this->stem = ($stem === null || trim($stem) === '') ? null : trim($stem);
     }
 }

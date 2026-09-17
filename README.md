@@ -45,7 +45,7 @@ $config = new GrouperConfiguration(
     serviceUrl: $_ENV['GROUPER_URL'],      // e.g. 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest'
     username:   $_ENV['GROUPER_USER'],
     password:   $_ENV['GROUPER_PASSWORD'],
-    stem:       $_ENV['GROUPER_STEM'],     // e.g. 'iu:apps:your-app'
+    stem:       $_ENV['GROUPER_STEM'],     // optional; e.g. 'iu:roles:sys:acm'
 );
 ```
 
@@ -54,10 +54,29 @@ $config = new GrouperConfiguration(
 | `serviceUrl` | `string` | Base URL of the Grouper REST service, **without** a version segment — the client appends the right one per operation. Must be `https`; a trailing slash is stripped. |
 | `username` | `string` | Service-account username, sent as HTTP Basic auth. |
 | `password` | `string` | Service-account password. |
-| `stem` | `string` | The stem membership queries are scoped to. Required — without it a lookup would ask Grouper for a user's groups across the whole institution. |
+| `stem` | `?string` | Optional. The stem membership queries are scoped to. Blank or omitted means an **unscoped, institution-wide lookup** — every group the user belongs to. See [Choosing a stem](#choosing-a-stem). |
 
 Invalid configuration throws `GrouperConfigurationException` at construction, so a misconfigured
 deployment fails at boot rather than on the first authorization check.
+
+### Choosing a stem
+
+`stemName` is optional in Grouper's own API, and it is optional here. The trade-off:
+
+- **With a stem**, the lookup is scoped to that subtree (`stemScope=ALL_IN_SUBTREE`) — faster, and it
+  returns only groups the application has a reason to see.
+- **Without one**, Grouper returns every group the user belongs to, institution-wide. That is a broad and
+  slow query. Prefer a stem when you know one.
+
+IU applications commonly query shared institutional stems rather than owning a subtree of their own —
+`iu:roles:sys:acm` (ACM roles) and `iu:bundles` (compliance bundles) are the usual ones. In that model the
+stem narrows the query and your group identifiers do the actual selecting.
+
+A blank stem is normalised to `null` rather than rejected, so an unset `GROUPER_STEM` degrades to an
+unscoped lookup instead of a boot failure. If a stem is important to your deployment, assert it yourself.
+
+**One client is scoped to one stem.** To query two stems — ACM roles *and* bundles, say — construct two
+clients, or configure no stem and filter by group identifier.
 
 ## Constructing the client
 

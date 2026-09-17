@@ -58,11 +58,18 @@ final readonly class GrouperClient
      */
     public function groupsFor(string $username): GroupMembership|GrouperUnavailable
     {
-        $response = $this->post(self::GET_GROUPS_PATH, [
-            'subjectIdentifier' => $username,
-            'stemName' => $this->config->stem,
-            'stemScope' => 'ALL_IN_SUBTREE',
-        ]);
+        $params = ['subjectIdentifier' => $username];
+
+        // stemName is optional in Grouper's own specification. With no stem
+        // configured this asks for every group the user belongs to
+        // institution-wide -- broad and slow, but legitimate. stemScope is only
+        // meaningful alongside a stem, so the two travel together or not at all.
+        if ($this->config->stem !== null) {
+            $params['stemName'] = $this->config->stem;
+            $params['stemScope'] = 'ALL_IN_SUBTREE';
+        }
+
+        $response = $this->post(self::GET_GROUPS_PATH, $params);
 
         if ($response instanceof GrouperUnavailable) {
             return $response;

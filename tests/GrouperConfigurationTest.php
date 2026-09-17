@@ -60,20 +60,60 @@ final class GrouperConfigurationTest extends TestCase
     }
 
     /**
-     * Every query this library issues is stem-scoped. Without a stem the
-     * client would ask Grouper for a user's groups across the whole
-     * institution, which is both slow and none of the application's business.
+     * The stem is optional, matching Grouper itself -- stemName is not a
+     * required parameter on getGroupsLite. Omitting it asks for every group the
+     * user belongs to institution-wide, which is a broad and slow query, but a
+     * legitimate one.
      */
-    public function test_it_rejects_a_missing_stem(): void
+    public function test_it_accepts_a_configuration_with_no_stem(): void
     {
-        $this->expectException(GrouperConfigurationException::class);
-
-        new GrouperConfiguration(
+        $config = new GrouperConfiguration(
             serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
             username: 'svc',
             password: 'p',
-            stem: '  ',
         );
+
+        self::assertNull($config->stem, 'an unscoped lookup is allowed');
+    }
+
+    /**
+     * A blank stem is almost always an unset environment variable rather than a
+     * deliberate institution-wide query. Normalising it to null keeps the
+     * client from sending an empty stemName, which Grouper would reject.
+     */
+    #[DataProvider('blankStems')]
+    public function test_it_normalises_a_blank_stem_to_null(string $stem): void
+    {
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'p',
+            stem: $stem,
+        );
+
+        self::assertNull($config->stem);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function blankStems(): iterable
+    {
+        yield 'empty' => [''];
+        yield 'spaces' => ['   '];
+        yield 'tab' => ["\t"];
+    }
+
+    public function test_it_trims_surrounding_whitespace_from_a_stem(): void
+    {
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'p',
+            stem: '  iu:roles:sys:acm  ',
+        );
+
+        self::assertSame('iu:roles:sys:acm', $config->stem);
     }
 
     public function test_it_accepts_a_valid_configuration(): void

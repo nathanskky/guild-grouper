@@ -128,6 +128,18 @@ Two more worth knowing:
 - **`groupName` cannot be combined with other search parameters** in `findGroupsLite`, per Grouper's own
   parameter documentation. This is why `groupExists()` does not send `stemName` and expects fully
   qualified identifiers.
+- **`stemName` is optional, and so is the configured stem.** With no stem, `groupsFor()` omits both
+  `stemName` and `stemScope` — they travel together, because Grouper documents stemScope as meaningful
+  only alongside a stem. A blank stem normalises to `null` rather than throwing, so an unset
+  `GROUPER_STEM` degrades to a broad institution-wide lookup rather than failing at boot. That is a
+  deliberate trade and worth knowing when a lookup is mysteriously slow.
+
+**On stem conventions:** the two .NET reference clients hard-code their stems as string literals inside
+their JSON bodies — `iu:roles:sys:acm`, `iu:roles:sys:acmex` and `iu:bundles`, chosen per method. They are
+shared *institutional* stems, not per-application subtrees, which is why callers of those clients never
+pass a stem and may not realise one is being applied. Expect IU deployments to look like that rather than
+like an `iu:apps:your-app` subtree. One `GrouperClient` is scoped to one stem; two stems means two
+clients, or no stem plus filtering by identifier.
 
 ## Reference material
 
