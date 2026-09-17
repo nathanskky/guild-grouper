@@ -1,0 +1,44 @@
+{
+  "WsGetGroupsLiteResult": {
+    "resultMetadata": {
+      "success": "T",
+      "resultCode": "SUCCESS",
+      "resultMessage": "Found 2 groups"
+    },
+    "responseMetadata": {
+      "millis": "42",
+      "serverVersion": "4.0.000"
+    },
+    "wsSubject": {
+      "id": "1000000001",
+      "identifierLookup": "jdoe",
+      "name": "Doe, Jane",
+      "resultCode": "SUCCESS",
+      "sourceId": "ldap",
+      "success": "T"
+    },
+    "wsGroups": [
+      {
+        "name": "iu:apps:x:editors",
+        "displayName": "Indiana University:Applications:X:Editors",
+        "uuid": "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa1",
+        "description": "People who may edit content in X",
+        "extension": "editors",
+        "displayExtension": "Editors",
+        "typeOfGroup": "group",
+        "idIndex": "10001",
+        "enabled": "T"
+      },
+      {
+        "name": "iu:apps:x:viewers",
+        "displayName": "Indiana University:Applications:X:Viewers",
+        "uuid": "bbbbbbbbbbbb4bbbbbbbbbbbbbbbbbb2",
+        "extension": "viewers",
+        "displayExtension": "Viewers",
+        "typeOfGroup": "group",
+        "idIndex": "10002",
+        "enabled": "T"
+      }
+    ]
+  }
+}

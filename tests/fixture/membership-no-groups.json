@@ -1,0 +1,21 @@
+{
+  "WsGetGroupsLiteResult": {
+    "resultMetadata": {
+      "success": "T",
+      "resultCode": "SUCCESS",
+      "resultMessage": "Found 0 groups"
+    },
+    "responseMetadata": {
+      "millis": "18",
+      "serverVersion": "4.0.000"
+    },
+    "wsSubject": {
+      "id": "1000000002",
+      "identifierLookup": "nobody",
+      "name": "Nobody, A",
+      "resultCode": "SUCCESS",
+      "sourceId": "ldap",
+      "success": "T"
+    }
+  }
+}
