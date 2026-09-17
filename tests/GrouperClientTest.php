@@ -69,9 +69,9 @@ final class GrouperClientTest extends TestCase
         );
         self::assertSame('iu:apps:x', $body['stemName'] ?? null, 'queries are scoped to the configured stem');
         self::assertSame(
-            'ALL_IN_SUBTREE',
+            'ONE_LEVEL',
             $body['stemScope'] ?? null,
-            'Grouper requires stemScope whenever a stem is passed',
+            'ACM groups sit exactly one level below their stem; Grouper requires stemScope whenever a stem is passed',
         );
         self::assertArrayNotHasKey('subjectId', $body, 'the subject travels in the path');
     }

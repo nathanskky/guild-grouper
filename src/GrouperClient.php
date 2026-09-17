@@ -42,6 +42,21 @@ use Psr\Http\Message\ResponseInterface;
  */
 final readonly class GrouperClient
 {
+    /**
+     * How deep below the configured stem to look.
+     *
+     * ONE_LEVEL, matching IU's production .NET clients. ACM's namespace is flat
+     * — every ACM group sits exactly one level below `iu:roles:sys:acm` — so
+     * this is the precise scope for the default stem.
+     *
+     * The consequence to know about: against a stem whose groups live *deeper*
+     * than one level, ONE_LEVEL returns nothing, successfully. A scoped lookup
+     * on `iu:roles:sys` answers `success="T"` with no groups at all, because
+     * every group under it is really under `iu:roles:sys:acm`. If a configured
+     * stem starts returning empty memberships for everyone, this is why.
+     */
+    private const string STEM_SCOPE = 'ONE_LEVEL';
+
     /** getGroupsLite — the groups a subject belongs to. */
     private const string GET_GROUPS_OBJECT_TYPE = 'WsRestGetGroupsLiteRequest';
 
@@ -70,7 +85,7 @@ final readonly class GrouperClient
         // meaningful alongside a stem, so the two travel together or not at all.
         if ($this->config->stem !== null) {
             $params['stemName'] = $this->config->stem;
-            $params['stemScope'] = 'ALL_IN_SUBTREE';
+            $params['stemScope'] = self::STEM_SCOPE;
         }
 
         $response = $this->post('subjects/'.rawurlencode($username).'/groups', ['form_params' => $params]);

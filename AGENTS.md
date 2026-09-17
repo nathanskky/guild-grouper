@@ -161,10 +161,14 @@ scoped `iu:roles:sys` lookup returns, which is a useful consistency check.)
 One `GrouperClient` is scoped to one stem; two stems means two clients, or `stem: null` plus filtering by
 identifier.
 
-**This library sends `stemScope=ALL_IN_SUBTREE` where the .NET clients send `ONE_LEVEL`.** Against a flat
-ACM namespace the two return identical results, so the difference is currently invisible. It is
-deliberate: if ACM ever nests a group, `ONE_LEVEL` would silently miss it, and a missed group means
-wrongly denying someone access. `ALL_IN_SUBTREE` fails in the safer direction.
+**`stemScope` is `ONE_LEVEL`**, matching IU's production .NET clients, whose authors know ACM well. ACM's
+namespace is flat, so one level is the precise scope for the default stem.
+
+**The landmine that comes with it:** against a stem whose groups live deeper than one level, `ONE_LEVEL`
+returns nothing *successfully* — `success="T"`, no groups, no error. This is observed, not theoretical: a
+scoped lookup on `iu:roles:sys` returns zero groups for an account with 187 of them, because they all
+really sit under `iu:roles:sys:acm`. If a configured stem starts returning empty memberships for
+everybody, check its depth before anything else.
 
 ## Reference material
 

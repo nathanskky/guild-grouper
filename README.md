@@ -118,8 +118,14 @@ a real account, the difference is large:
 
 A stem is worth 7–35× here, which is the other reason to keep the default.
 
-A stem that does not exist is an **error**, not an empty result: Grouper answers `400 INVALID_QUERY` with
-"Stem not found", and `groupsFor()` throws `GrouperResponseException`.
+Two ways a stem can disappoint you quietly:
+
+- **A stem that does not exist is an error**, not an empty result. Grouper answers `400 INVALID_QUERY`
+  with "Stem not found", and `groupsFor()` throws `GrouperResponseException`.
+- **A stem whose groups sit deeper than one level returns nothing, successfully.** Lookups use
+  `stemScope=ONE_LEVEL`, matching IU's production clients, because ACM's namespace is flat. Point the
+  library at a *parent* stem such as `iu:roles:sys` and every user will come back with no groups and no
+  error. If a custom stem yields empty memberships for everyone, that is the first thing to check.
 
 **One client is scoped to one stem.** To query two stems — ACM roles *and* bundles, say — construct two
 clients, or configure no stem and filter by group identifier.
