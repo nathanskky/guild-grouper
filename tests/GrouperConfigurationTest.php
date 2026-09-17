@@ -148,4 +148,27 @@ final class GrouperConfigurationTest extends TestCase
             'the trailing slash is removed so operation paths can be appended directly',
         );
     }
+
+    public function test_the_client_version_defaults_to_v4(): void
+    {
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'p',
+        );
+
+        self::assertSame('v4_0_000', $config->clientVersion);
+    }
+
+    public function test_it_rejects_a_blank_client_version(): void
+    {
+        $this->expectException(GrouperConfigurationException::class);
+
+        new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'p',
+            clientVersion: '  ',
+        );
+    }
 }

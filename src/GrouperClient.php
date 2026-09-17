@@ -26,23 +26,35 @@ use Psr\Http\Message\ResponseInterface;
  *     the Lite variants take form-encoded parameters, never a JSON body.
  *  2. **Success is signalled by `resultMetadata.success`**, a string "T"/"F" —
  *     not by the HTTP status alone.
- *  3. **The version segment lives in the path, per operation**, and the two
- *     operations used here are on *different* versions. These segments move
- *     between Grouper releases, so they are declared as constants below and
- *     nowhere else.
+ *  3. **The version segment in the path is the *client* version** — the API
+ *     contract this library is coded against — and it is one value for every
+ *     operation. It is emphatically not a per-endpoint version, despite what
+ *     the published Swagger appears to show; see the note below.
+ *  4. **Both Lite operations address the same `/groups` resource**, so the path
+ *     cannot distinguish them. `wsLiteObjectType` in the request body is the
+ *     discriminator, which is why that parameter is declared required.
+ *
+ * On the Swagger's version segments: it documents `getGroupsLite` at
+ * `v4_0_440` and `findGroupsLite` at `v4_0_330`, which reads as per-operation
+ * versioning. It is not. Sorted by operationId, the 65 paths run `v4_0_010`,
+ * `v4_0_030`, `v4_0_040` … `v4_0_660` in strict alphabetical order, stepping by
+ * ten — synthetic sequence numbers emitted by the generator, not versions. The
+ * real segment is the client version, which is why IU's own .NET clients set it
+ * once in their base URL and append only the resource.
  */
 final readonly class GrouperClient
 {
     /**
-     * getGroupsLite — the groups a subject belongs to.
+     * Both Lite operations used here address the same REST resource. They are
+     * told apart by wsLiteObjectType in the request body, not by the path.
      */
-    private const string GET_GROUPS_PATH = '/v4_0_440/groups';
+    private const string GROUPS_RESOURCE = 'groups';
 
-    /**
-     * findGroupsLite — group lookup. Note this is a *different* version segment
-     * than getGroupsLite above; Grouper versions each operation independently.
-     */
-    private const string FIND_GROUPS_PATH = '/v4_0_330/groups';
+    /** getGroupsLite — the groups a subject belongs to. */
+    private const string GET_GROUPS_OBJECT_TYPE = 'WsRestGetGroupsLiteRequest';
+
+    /** findGroupsLite — group lookup by name. */
+    private const string FIND_GROUPS_OBJECT_TYPE = 'WsRestFindGroupsLiteRequest';
 
     public function __construct(
         private GrouperConfiguration $config,
@@ -58,7 +70,10 @@ final readonly class GrouperClient
      */
     public function groupsFor(string $username): GroupMembership|GrouperUnavailable
     {
-        $params = ['subjectIdentifier' => $username];
+        $params = [
+            'wsLiteObjectType' => self::GET_GROUPS_OBJECT_TYPE,
+            'subjectIdentifier' => $username,
+        ];
 
         // stemName is optional in Grouper's own specification. With no stem
         // configured this asks for every group the user belongs to
@@ -69,7 +84,7 @@ final readonly class GrouperClient
             $params['stemScope'] = 'ALL_IN_SUBTREE';
         }
 
-        $response = $this->post(self::GET_GROUPS_PATH, $params);
+        $response = $this->post($params);
 
         if ($response instanceof GrouperUnavailable) {
             return $response;
@@ -95,7 +110,8 @@ final readonly class GrouperClient
      */
     public function groupExists(string $identifier): bool|GrouperUnavailable
     {
-        $response = $this->post(self::FIND_GROUPS_PATH, [
+        $response = $this->post([
+            'wsLiteObjectType' => self::FIND_GROUPS_OBJECT_TYPE,
             'queryFilterType' => 'FIND_BY_GROUP_NAME_EXACT',
             // Grouper documents groupName as mutually exclusive with the other
             // search parameters, so the configured stem is deliberately not
@@ -132,10 +148,12 @@ final readonly class GrouperClient
      *
      * @param  array<string, string>  $formParams
      */
-    private function post(string $path, array $formParams): ResponseInterface|GrouperUnavailable
+    private function post(array $formParams): ResponseInterface|GrouperUnavailable
     {
+        $url = sprintf('%s/%s/%s', $this->config->serviceUrl, $this->config->clientVersion, self::GROUPS_RESOURCE);
+
         try {
-            return $this->http->request('POST', $this->config->serviceUrl.$path, [
+            return $this->http->request('POST', $url, [
                 'auth' => [$this->config->username, $this->config->password],
                 'form_params' => $formParams,
             ]);

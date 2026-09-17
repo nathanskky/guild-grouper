@@ -40,9 +40,9 @@ final class GrouperClientTest extends TestCase
 
         self::assertSame('POST', $request->getMethod(), 'every Grouper v4 operation is POST; no GET operation exists');
         self::assertStringEndsWith(
-            '/v4_0_440/groups',
+            '/v4_0_000/groups',
             $request->getUri()->getPath(),
-            'getGroupsLite carries its version segment in the path',
+            'the path segment is the client version, uniform across operations',
         );
         self::assertSame(
             'application/x-www-form-urlencoded',
@@ -77,7 +77,7 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
 
         self::assertSame(
-            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v4_0_440/groups',
+            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v4_0_000/groups',
             (string) $this->lastRequest()->getUri(),
         );
     }
@@ -233,9 +233,9 @@ final class GrouperClientTest extends TestCase
         $body = $this->lastRequestBody();
 
         self::assertStringEndsWith(
-            '/v4_0_330/groups',
+            '/v4_0_000/groups',
             $request->getUri()->getPath(),
-            'findGroupsLite sits on a different version segment than getGroupsLite',
+            'both operations post to the same resource under the same client version',
         );
         self::assertSame('FIND_BY_GROUP_NAME_EXACT', $body['queryFilterType'] ?? null);
         self::assertSame('iu:apps:x:editors', $body['groupName'] ?? null);
@@ -285,6 +285,58 @@ final class GrouperClientTest extends TestCase
         $this->expectException(GrouperConfigurationException::class);
 
         $this->clientReturning(401, '')->groupExists('iu:apps:x:editors');
+    }
+
+    /**
+     * Both Lite operations post to the same /groups resource under the same
+     * client version, so the path cannot tell Grouper which one is meant.
+     * wsLiteObjectType is the discriminator, and it is why the parameter is
+     * declared required.
+     */
+    public function test_it_names_the_lite_operation_in_the_request_body(): void
+    {
+        $this->clientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
+
+        self::assertSame(
+            'WsRestGetGroupsLiteRequest',
+            $this->lastRequestBody()['wsLiteObjectType'] ?? null,
+        );
+    }
+
+    public function test_group_exists_names_its_own_lite_operation(): void
+    {
+        $this->clientReturning(200, $this->fixture('group-found'))->groupExists('iu:apps:x:editors');
+
+        self::assertSame(
+            'WsRestFindGroupsLiteRequest',
+            $this->lastRequestBody()['wsLiteObjectType'] ?? null,
+            'the discriminator is what separates findGroupsLite from getGroupsLite',
+        );
+    }
+
+    /**
+     * The client version is a deployment concern -- Grouper keeps older client
+     * versions working for backwards compatibility, and the two IU .NET clients
+     * in production still use v2_5_000.
+     */
+    public function test_the_client_version_is_configurable(): void
+    {
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, [], $this->fixture('membership-two-groups')),
+        ]));
+        $stack->push(Middleware::history($this->history));
+
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'secret',
+            stem: 'iu:apps:x',
+            clientVersion: 'v2_5_000',
+        );
+
+        (new GrouperClient($config, new Client(['handler' => $stack])))->groupsFor('jdoe');
+
+        self::assertStringEndsWith('/v2_5_000/groups', $this->lastRequest()->getUri()->getPath());
     }
 
     // -- helpers -----------------------------------------------------------

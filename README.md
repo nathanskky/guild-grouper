@@ -51,13 +51,35 @@ $config = new GrouperConfiguration(
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `serviceUrl` | `string` | Base URL of the Grouper REST service, **without** a version segment — the client appends the right one per operation. Must be `https`; a trailing slash is stripped. |
+| `serviceUrl` | `string` | Base URL of the Grouper REST service, **without** a version segment. Must be `https`; a trailing slash is stripped. |
 | `username` | `string` | Service-account username, sent as HTTP Basic auth. |
 | `password` | `string` | Service-account password. |
+| `clientVersion` | `string` | Default `'v4_0_000'`. The Grouper *client* version — the API contract this library is coded against. See [Client version](#client-version). |
 | `stem` | `?string` | Optional. The stem membership queries are scoped to. Blank or omitted means an **unscoped, institution-wide lookup** — every group the user belongs to. See [Choosing a stem](#choosing-a-stem). |
 
 Invalid configuration throws `GrouperConfigurationException` at construction, so a misconfigured
 deployment fails at boot rather than on the first authorization check.
+
+### Client version
+
+The version segment in a Grouper URL is the **client version** — which revision of the API contract your
+client was written against. Grouper keeps older client versions working, so this is a compatibility
+dial, not a per-endpoint detail: one value applies to every call.
+
+```php
+$config = new GrouperConfiguration(
+    // ...
+    clientVersion: 'v2_5_000',   // what IU's .NET clients use in production
+);
+```
+
+The default is `v4_0_000`, matching the v4 contract this library was built against. If Grouper rejects
+requests after an upgrade, this is the dial to turn.
+
+> The published Swagger appears to show a different version per operation — `getGroupsLite` at
+> `v4_0_440`, `findGroupsLite` at `v4_0_330`. It does not. Sorted by operation name, all 65 paths run
+> `v4_0_010`, `v4_0_030` … `v4_0_660` in alphabetical order stepping by ten; they are generator sequence
+> numbers, not versions.
 
 ### Choosing a stem
 

@@ -113,18 +113,28 @@ in `GrouperClient`; keep them there.
   **never a JSON body**. If you find yourself writing `'json' =>`, stop.
 - **Success is signalled by `resultMetadata.success`**, a string `"T"`/`"F"`, **not by the HTTP status
   alone.** A 200 can carry a failure. Never infer success from the status code.
-- **The version segment lives in the path, per operation, and the two operations used here are on
-  different versions** — `getGroupsLite` is `v4_0_440`, `findGroupsLite` is `v4_0_330`. These move
-  between Grouper releases, which is why they are `private const` at the top of `GrouperClient` and
-  nowhere else. When a Grouper upgrade breaks this library, that is the first place to look.
+- **The version segment in the path is the *client* version, not a per-endpoint version.** It is the API
+  contract the client is coded against, Grouper uses it for backwards compatibility, and it is one value
+  for every operation — `GrouperConfiguration::$clientVersion`, defaulting to `v4_0_000`.
+
+  **The published Swagger makes this look otherwise, and it is wrong.** It documents `getGroupsLite` at
+  `v4_0_440` and `findGroupsLite` at `v4_0_330`. Sort all 65 paths by `operationId` and they run
+  `v4_0_010`, `v4_0_030`, `v4_0_040` … `v4_0_660` — strict alphabetical order, stepping by ten. Those are
+  synthetic sequence numbers from the doc generator, not versions; `getGroupsLite` is simply the 44th
+  operation alphabetically. IU's own .NET clients set the version once in their base URL and append only
+  the resource, which is the correct shape. Do not reintroduce per-operation version constants.
+- **Both Lite operations post to the same `/groups` resource**, so the path cannot say which is meant.
+  `wsLiteObjectType` is the discriminator — `WsRestGetGroupsLiteRequest` vs
+  `WsRestFindGroupsLiteRequest` — which is why the spec declares it required.
 
 Two more worth knowing:
 
-- **`wsLiteObjectType` is declared `required: true`** on both operations in the published Swagger, and
-  this library does **not** send it. That is a considered bet, not an oversight: all 29 Lite operations
-  declare the identical description `WsRestFindGroupsLiteRequest` — including `addMemberLite`, which
-  plainly does not take one — so the parameter is a generator artifact and its documented value is
-  untrustworthy. If live calls fail with a request-shape error, this is the first thing to try.
+- **`wsLiteObjectType`'s documented *value* is untrustworthy even though the parameter is real.** All 29
+  Lite operations declare the identical description `WsRestFindGroupsLiteRequest`, including
+  `addMemberLite`, which plainly does not take one — the generator lost the per-operation value. The
+  parameter itself is genuine and necessary (it is the operation discriminator), so this library sends the
+  value each operation's own request class implies. If a live call is answered by the *wrong* operation,
+  suspect these strings.
 - **`groupName` cannot be combined with other search parameters** in `findGroupsLite`, per Grouper's own
   parameter documentation. This is why `groupExists()` does not send `stemName` and expects fully
   qualified identifiers.
@@ -169,7 +179,12 @@ Until the package has been exercised against a real service account, three thing
    than an error envelope. **If Grouper signals "no results" as `success="F"`, this library's rules are
    wrong** and the empty case must be reclassified — it would currently throw where it should return an
    empty membership.
-3. Whether `wsLiteObjectType` must in fact be sent.
+3. That `v4_0_000` is a client version IU's deployment accepts. The two .NET clients in production use
+   `v2_5_000`, so that is the known-good fallback — `GrouperConfiguration::$clientVersion` exists to
+   change it without touching code.
+4. That both operations live on the `groups` resource. IU's .NET clients post their non-Lite
+   `WsRestGetGroupsRequest` to `subjects` rather than `groups`, while the Swagger puts `getGroupsLite` on
+   `groups`. Only a live call settles it.
 
 Replace the fixtures with recorded real responses once credentials exist.
 
