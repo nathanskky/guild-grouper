@@ -139,7 +139,8 @@ public function groupsFor(string $username): GroupMembership|GrouperUnavailable
 
 Returns the groups `$username` belongs to within the configured stem.
 
-**An empty group list is a successful answer**, not a failure. It means Grouper was reached and this user
+**An empty group list is a successful answer**, not a failure — verified against production, where
+Grouper reports it as `success="T"` with the `wsGroups` key absent entirely. It means Grouper was reached and this user
 belongs to nothing here — the ordinary case for most people and most applications. Do not conflate it with
 `GrouperUnavailable`, which means the answer is unknown.
 

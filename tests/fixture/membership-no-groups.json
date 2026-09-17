@@ -1,21 +1,20 @@
 {
   "WsGetGroupsLiteResult": {
     "resultMetadata": {
-      "success": "T",
       "resultCode": "SUCCESS",
-      "resultMessage": "Found 0 groups"
+      "resultMessage": "Success for: clientVersion: 2.5.0, subjectLookups: Array size: 1: [0]: WsSubjectLookup[subjectId=nobody]\n\nmemberFilter: All, includeGroupDetail: false, actAsSubject: null\n, params: null\n fieldName1: null\n, scope: null, wsStemLookup: WsStemLookup[stemName=iu:apps:x]\n, stemScope: ONE_LEVEL, enabled: null, pageSize: null, pageNumber: null, sortString: null, ascending: null\n, pointInTimeFrom: null, pointInTimeTo: null",
+      "success": "T"
     },
     "responseMetadata": {
-      "millis": "18",
-      "serverVersion": "4.0.000"
+      "millis": "224",
+      "serverVersion": "4.24.0"
     },
     "wsSubject": {
-      "id": "1000000002",
-      "identifierLookup": "nobody",
-      "name": "Nobody, A",
       "resultCode": "SUCCESS",
-      "sourceId": "ldap",
-      "success": "T"
+      "success": "T",
+      "id": "nobody",
+      "name": "Nobody, A",
+      "sourceId": "ldap"
     }
   }
 }

@@ -116,9 +116,11 @@ final class GrouperClientTest extends TestCase
     }
 
     /**
-     * The fixture omits wsGroups entirely rather than sending an empty array,
-     * which is how Grouper reports "nothing found". It must still be a
-     * successful, empty membership.
+     * The single most important behaviour in this library, and the fixture is a
+     * real recorded response: a genuine subject, a genuine stem, and no matches.
+     * Grouper reports that as success="T" with the wsGroups key **absent
+     * entirely** -- not an empty array. It must read as a successful, empty
+     * membership, never as a failure.
      */
     public function test_a_user_with_no_groups_returns_an_empty_membership_not_a_failure(): void
     {

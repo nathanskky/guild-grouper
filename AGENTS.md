@@ -175,6 +175,10 @@ library's default client version comes from — it is the version IU's deploymen
 
 ## Fixtures
 
+**Every fixture here is a real recorded response from IU's production Grouper (server 4.24.0), with group
+and person identities anonymised.** Keep it that way when re-recording -- these files are destined for a
+public repository and the raw responses describe one person's institutional access.
+
 **`tests/fixture/membership-two-groups.json` carries the envelope of a real recorded response** — the
 nine-field `WsGroup`, the five-field `wsSubject`, and the real `resultMetadata`/`responseMetadata` shape
 from Grouper 4.24.0. **The group identities in it are anonymised**, so the file does not publish one
