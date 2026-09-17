@@ -28,14 +28,14 @@ final readonly class GrouperConfiguration
     public ?string $stem;
 
     /**
-     * The Grouper *client* version -- the version of the API contract this
-     * library is coded against, which Grouper uses for backwards compatibility.
-     * It is one value for every operation, not one per endpoint.
+     * The Grouper *client* version -- the version of the API contract a client
+     * is coded against, which Grouper uses for backwards compatibility. One
+     * value serves every operation; it is not a per-endpoint version.
      *
-     * Defaults to the v4 contract this library was built against. It is
-     * configurable because Grouper keeps older client versions working, and
-     * because a Grouper upgrade may require moving it: the two IU .NET clients
-     * in production still run against v2_5_000.
+     * The default, `v2_5_000`, is the version IU's production .NET clients run
+     * against, making it the one empirically known to work against IU's
+     * deployment. Grouper keeps older client versions working, so moving to a
+     * newer contract is a configuration change rather than a code change.
      */
     public string $clientVersion;
 
@@ -44,7 +44,7 @@ final readonly class GrouperConfiguration
         public string $username,
         public string $password,
         ?string $stem = null,
-        string $clientVersion = 'v4_0_000',
+        string $clientVersion = 'v2_5_000',
     ) {
         if (trim($clientVersion) === '') {
             throw new GrouperConfigurationException('Grouper client version is required; it forms part of every request path.');

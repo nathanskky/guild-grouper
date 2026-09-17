@@ -115,14 +115,16 @@ in `GrouperClient`; keep them there.
   alone.** A 200 can carry a failure. Never infer success from the status code.
 - **The version segment in the path is the *client* version, not a per-endpoint version.** It is the API
   contract the client is coded against, Grouper uses it for backwards compatibility, and it is one value
-  for every operation — `GrouperConfiguration::$clientVersion`, defaulting to `v4_0_000`.
+  for every operation — `GrouperConfiguration::$clientVersion`, defaulting to `v2_5_000`, the version
+  IU's production .NET clients run against.
 
   **The published Swagger makes this look otherwise, and it is wrong.** It documents `getGroupsLite` at
   `v4_0_440` and `findGroupsLite` at `v4_0_330`. Sort all 65 paths by `operationId` and they run
   `v4_0_010`, `v4_0_030`, `v4_0_040` … `v4_0_660` — strict alphabetical order, stepping by ten. Those are
   synthetic sequence numbers from the doc generator, not versions; `getGroupsLite` is simply the 44th
   operation alphabetically. IU's own .NET clients set the version once in their base URL and append only
-  the resource, which is the correct shape. Do not reintroduce per-operation version constants.
+  the resource, which is the correct shape. Keep the version in configuration; it does not belong in
+  per-operation constants.
 - **Both Lite operations post to the same `/groups` resource**, so the path cannot say which is meant.
   `wsLiteObjectType` is the discriminator — `WsRestGetGroupsLiteRequest` vs
   `WsRestFindGroupsLiteRequest` — which is why the spec declares it required.
@@ -162,9 +164,14 @@ https://grouperws.apps.iu.edu/grouper-ws/docs/index.json
 
 Re-fetch it rather than trusting a restatement, including this one.
 
-**Do not port the .NET clients** (`SP3.Grouper.Api`, `EA.Grouper.Api.Client`). They target `v2_5_000` and
-issue `GET` with a JSON body — an older major version and a request shape that appears nowhere in the v4
-specification. They are useful only as an example of flattening Grouper's envelopes into small DTOs.
+**Do not port the .NET clients' transport** (`SP3.Grouper.Api`, `EA.Grouper.Api.Client`). They issue `GET`
+with a JSON body and name the operation in a `WsRest…Request` wrapper inside that body — a request shape
+that appears nowhere in the v4 specification, which is POST-only and form-encoded for the Lite variants.
+
+They are worth reading for three things, and this library takes all three: the client version belongs in
+the base URL once rather than per operation, the operation is named in the request rather than the path,
+and Grouper's envelopes are worth flattening into small DTOs. Their `v2_5_000` is also where this
+library's default client version comes from — it is the version IU's deployment is known to accept.
 
 ## Fixtures are synthetic
 
@@ -179,9 +186,10 @@ Until the package has been exercised against a real service account, three thing
    than an error envelope. **If Grouper signals "no results" as `success="F"`, this library's rules are
    wrong** and the empty case must be reclassified — it would currently throw where it should return an
    empty membership.
-3. That `v4_0_000` is a client version IU's deployment accepts. The two .NET clients in production use
-   `v2_5_000`, so that is the known-good fallback — `GrouperConfiguration::$clientVersion` exists to
-   change it without touching code.
+3. That `v2_5_000` accepts **this** request shape. The version itself is known good — IU's production
+   .NET clients use it — but those clients issue `GET` with a JSON body, while this library issues a
+   form-encoded `POST`. The client version and the request shape are verified separately, and only the
+   first of the two is settled.
 4. That both operations live on the `groups` resource. IU's .NET clients post their non-Lite
    `WsRestGetGroupsRequest` to `subjects` rather than `groups`, while the Swagger puts `getGroupsLite` on
    `groups`. Only a live call settles it.

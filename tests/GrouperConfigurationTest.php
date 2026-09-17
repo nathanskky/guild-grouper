@@ -149,7 +149,7 @@ final class GrouperConfigurationTest extends TestCase
         );
     }
 
-    public function test_the_client_version_defaults_to_v4(): void
+    public function test_the_client_version_defaults_to_the_version_iu_is_known_to_accept(): void
     {
         $config = new GrouperConfiguration(
             serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
@@ -157,7 +157,11 @@ final class GrouperConfigurationTest extends TestCase
             password: 'p',
         );
 
-        self::assertSame('v4_0_000', $config->clientVersion);
+        self::assertSame(
+            'v2_5_000',
+            $config->clientVersion,
+            "IU's production .NET clients run against this version",
+        );
     }
 
     public function test_it_rejects_a_blank_client_version(): void

@@ -40,7 +40,7 @@ final class GrouperClientTest extends TestCase
 
         self::assertSame('POST', $request->getMethod(), 'every Grouper v4 operation is POST; no GET operation exists');
         self::assertStringEndsWith(
-            '/v4_0_000/groups',
+            '/v2_5_000/groups',
             $request->getUri()->getPath(),
             'the path segment is the client version, uniform across operations',
         );
@@ -77,7 +77,7 @@ final class GrouperClientTest extends TestCase
         $this->clientReturning(200, $this->fixture('membership-two-groups'))->groupsFor('jdoe');
 
         self::assertSame(
-            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v4_0_000/groups',
+            'https://grouperws.apps.iu.edu/grouper-ws/servicesRest/v2_5_000/groups',
             (string) $this->lastRequest()->getUri(),
         );
     }
@@ -233,7 +233,7 @@ final class GrouperClientTest extends TestCase
         $body = $this->lastRequestBody();
 
         self::assertStringEndsWith(
-            '/v4_0_000/groups',
+            '/v2_5_000/groups',
             $request->getUri()->getPath(),
             'both operations post to the same resource under the same client version',
         );
@@ -315,9 +315,9 @@ final class GrouperClientTest extends TestCase
     }
 
     /**
-     * The client version is a deployment concern -- Grouper keeps older client
-     * versions working for backwards compatibility, and the two IU .NET clients
-     * in production still use v2_5_000.
+     * The client version is a deployment concern: Grouper keeps older client
+     * versions working, so moving to a newer contract must not require a code
+     * change.
      */
     public function test_the_client_version_is_configurable(): void
     {
@@ -331,12 +331,12 @@ final class GrouperClientTest extends TestCase
             username: 'svc',
             password: 'secret',
             stem: 'iu:apps:x',
-            clientVersion: 'v2_5_000',
+            clientVersion: 'v4_0_000',
         );
 
         (new GrouperClient($config, new Client(['handler' => $stack])))->groupsFor('jdoe');
 
-        self::assertStringEndsWith('/v2_5_000/groups', $this->lastRequest()->getUri()->getPath());
+        self::assertStringEndsWith('/v4_0_000/groups', $this->lastRequest()->getUri()->getPath());
     }
 
     // -- helpers -----------------------------------------------------------

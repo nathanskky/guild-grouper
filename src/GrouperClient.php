@@ -19,35 +19,29 @@ use Psr\Http\Message\ResponseInterface;
  * delete, add-member or remove-member here, by design — group management is
  * done in Grouper itself, not through applications.
  *
- * Three things about Grouper's API are easy to get wrong and are all handled in
- * one place here:
+ * Four things about Grouper's API are easy to get wrong, and all four are
+ * handled in one place here:
  *
- *  1. **Every operation is POST.** There is no GET anywhere in the v4 API, and
- *     the Lite variants take form-encoded parameters, never a JSON body.
+ *  1. **Every operation is POST.** The published v4 specification contains no
+ *     GET operation at all, and the Lite variants take form-encoded
+ *     parameters, never a JSON body.
  *  2. **Success is signalled by `resultMetadata.success`**, a string "T"/"F" —
  *     not by the HTTP status alone.
- *  3. **The version segment in the path is the *client* version** — the API
- *     contract this library is coded against — and it is one value for every
- *     operation. It is emphatically not a per-endpoint version, despite what
- *     the published Swagger appears to show; see the note below.
+ *  3. **The version segment in the path is the client version** — the API
+ *     contract a client is coded against. One value serves every operation, and
+ *     it comes from GrouperConfiguration::$clientVersion.
  *  4. **Both Lite operations address the same `/groups` resource**, so the path
  *     cannot distinguish them. `wsLiteObjectType` in the request body is the
- *     discriminator, which is why that parameter is declared required.
+ *     discriminator, which is why the API declares that parameter required.
  *
- * On the Swagger's version segments: it documents `getGroupsLite` at
- * `v4_0_440` and `findGroupsLite` at `v4_0_330`, which reads as per-operation
- * versioning. It is not. Sorted by operationId, the 65 paths run `v4_0_010`,
- * `v4_0_030`, `v4_0_040` … `v4_0_660` in strict alphabetical order, stepping by
- * ten — synthetic sequence numbers emitted by the generator, not versions. The
- * real segment is the client version, which is why IU's own .NET clients set it
- * once in their base URL and append only the resource.
+ * The published Swagger gives each operation its own version segment —
+ * `getGroupsLite` at `v4_0_440`, `findGroupsLite` at `v4_0_330`. These are
+ * generator sequence numbers, not versions: sorted by operationId, the 65 paths
+ * run `v4_0_010`, `v4_0_030`, `v4_0_040` … `v4_0_660`, alphabetical and
+ * stepping by ten. Do not derive a version from them.
  */
 final readonly class GrouperClient
 {
-    /**
-     * Both Lite operations used here address the same REST resource. They are
-     * told apart by wsLiteObjectType in the request body, not by the path.
-     */
     private const string GROUPS_RESOURCE = 'groups';
 
     /** getGroupsLite — the groups a subject belongs to. */
