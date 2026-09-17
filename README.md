@@ -88,8 +88,21 @@ moving to a newer contract is a configuration change rather than a code change.
 
 - **With a stem**, the lookup is scoped to that subtree (`stemScope=ALL_IN_SUBTREE`) — faster, and it
   returns only groups the application has a reason to see.
-- **Without one**, Grouper returns every group the user belongs to, institution-wide. Measured against a
-  real IU account that is 357 groups and 5.6 seconds. Prefer a stem when you know one.
+- **Without one**, Grouper returns every group the user belongs to, institution-wide.
+
+Measured against a real IU account, the difference is large:
+
+| Query | Groups | Time |
+|---|---:|---:|
+| Unscoped, institution-wide | 357 | 5618 ms |
+| `stemName=iu:roles:sys` | 187 | 814 ms |
+| `stemName=iu:entlmt:app` | 144 | 728 ms |
+| `stemName=iu:bundles` | 20 | **158 ms** |
+
+A stem is worth 7–35× here. Use one whenever you know it.
+
+Note that a stem which does not exist is an **error**, not an empty result: Grouper answers
+`400 INVALID_QUERY` with "Stem not found", and `groupsFor()` throws `GrouperResponseException`.
 
 IU applications commonly query shared institutional stems rather than owning a subtree of their own —
 `iu:roles:sys:acm` (ACM roles) and `iu:bundles` (compliance bundles) are the usual ones. In that model the
@@ -199,7 +212,25 @@ deployment run indefinitely with an authorization layer that silently denies eve
 | HTTP 401, 403 | throws `GrouperConfigurationException` |
 | A group that does not exist | `false` — Grouper answers `success="T"` with no `groupResults` key |
 | 200 with `success="T"` | `GroupMembership` (possibly empty) |
+| 404 `SUBJECT_NOT_FOUND` | **empty `GroupMembership`** — see [Unknown users](#unknown-users) |
 | 200 with `success="F"`, or an unrecognisable body | throws `GrouperResponseException` |
+
+### Unknown users
+
+When the username is not a subject in Grouper at all — a deprovisioned account, a guest, or a typo —
+Grouper answers `404` with `resultCode=SUBJECT_NOT_FOUND`. `groupsFor()` reports that as an **empty
+`GroupMembership`**, not an exception.
+
+The reasoning is blast radius. An authorization check denies on an empty membership, which is the right
+outcome for a user Grouper has never heard of. Throwing would turn a deprovisioned account hitting the
+app into a `500` rather than a clean denial.
+
+The cost is that a typo'd username is indistinguishable from a real user with no groups. If you need to
+tell them apart — an admin screen that assigns access by username, say — check the username against your
+identity source before asking Grouper about it.
+
+Every *other* failure code still throws. A stem that does not exist answers `400 INVALID_QUERY`
+("Stem not found"), which is a misconfiguration somebody must fix, not a user with no groups.
 
 ## Not in scope
 

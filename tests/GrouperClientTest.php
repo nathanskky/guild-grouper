@@ -129,6 +129,45 @@ final class GrouperClientTest extends TestCase
         self::assertSame('nobody', $result->username);
     }
 
+    /**
+     * Grouper answers 404 with success="F" and SUBJECT_NOT_FOUND when the
+     * username is not a subject at all -- a deprovisioned account, a guest, or
+     * a typo. That is reported as an empty membership rather than thrown.
+     *
+     * The reasoning is about blast radius. An authorization check denies on an
+     * empty membership, which is the right outcome for an unknown user; letting
+     * it throw would turn a deprovisioned account hitting the app into a 500
+     * instead of a clean denial.
+     */
+    public function test_an_unknown_subject_is_an_empty_membership_not_a_failure(): void
+    {
+        $result = $this->clientReturning(404, $this->fixture('subject-not-found'))->groupsFor('ghost');
+
+        self::assertInstanceOf(GroupMembership::class, $result);
+        self::assertSame([], $result->groups);
+        self::assertSame('ghost', $result->username);
+    }
+
+    /**
+     * SUBJECT_NOT_FOUND is tolerated; every other failure code is not. A stem
+     * that does not exist answers INVALID_QUERY, and that is a misconfiguration
+     * somebody must fix, not a user with no groups.
+     */
+    public function test_a_missing_stem_still_throws(): void
+    {
+        $body = json_encode(['WsGetGroupsLiteResult' => ['resultMetadata' => [
+            'success' => 'F',
+            'resultCode' => 'INVALID_QUERY',
+            'resultMessage' => "Stem not found: 'name: iu:zzz:nope'",
+        ]]]);
+        self::assertIsString($body);
+
+        $this->expectException(GrouperResponseException::class);
+        $this->expectExceptionMessageMatches('/Stem not found/');
+
+        $this->clientReturning(400, $body)->groupsFor('jdoe');
+    }
+
     public function test_a_server_error_returns_grouper_unavailable(): void
     {
         $result = $this->clientReturning(503, '')->groupsFor('jdoe');
@@ -204,17 +243,17 @@ final class GrouperClientTest extends TestCase
             'WsGetGroupsLiteResult' => [
                 'resultMetadata' => [
                     'success' => 'F',
-                    'resultCode' => 'SUBJECT_NOT_FOUND',
-                    'resultMessage' => 'Cant find subject',
+                    'resultCode' => 'GROUP_NOT_FOUND',
+                    'resultMessage' => 'Cant find group',
                 ],
             ],
         ]);
         self::assertIsString($body);
 
         $this->expectException(GrouperResponseException::class);
-        $this->expectExceptionMessageMatches('/SUBJECT_NOT_FOUND/');
+        $this->expectExceptionMessageMatches('/GROUP_NOT_FOUND/');
 
-        $this->clientReturning(200, $body)->groupsFor('ghost');
+        $this->clientReturning(200, $body)->groupsFor('jdoe');
     }
 
     /**

@@ -183,20 +183,26 @@ person's institutional access; keep it that way when re-recording.
 Its second group deliberately omits `description`, because 4 of 357 groups in the recorded response had
 none. That is the case `GrouperGroup::$description` being nullable exists for.
 
-Until the package has been exercised against a real service account, three things are unverified:
+Verified against IU's production Grouper (server 4.24.0) with a real service account:
 
-1. That the base URL and both version segments are what IU actually exposes.
-2. That a user with genuinely no groups returns `success="T"` with an absent or empty `wsGroups`, rather
-   than an error envelope. **If Grouper signals "no results" as `success="F"`, this library's rules are
-   wrong** and the empty case must be reclassified — it would currently throw where it should return an
-   empty membership.
-3. That `v2_5_000` accepts **this** request shape. The version itself is known good — IU's production
-   .NET clients use it — but those clients issue `GET` with a JSON body, while this library issues a
-   form-encoded `POST`. The client version and the request shape are verified separately, and only the
-   first of the two is settled.
-4. That both operations live on the `groups` resource. IU's .NET clients post their non-Lite
-   `WsRestGetGroupsRequest` to `subjects` rather than `groups`, while the Swagger puts `getGroupsLite` on
-   `groups`. Only a live call settles it.
+- **The request shapes**, both of them — see the landmines above.
+- **Stem scoping works and matters.** Unscoped: 357 groups, 5618 ms. `iu:roles:sys`: 187, 814 ms.
+  `iu:bundles`: 20, 158 ms.
+- **A nonexistent stem is an error**, `400 INVALID_QUERY` / "Stem not found" — not an empty result.
+- **A nonexistent subject** answers `404` / `SUBJECT_NOT_FOUND`, which `groupsFor()` deliberately reports
+  as an empty membership. It is the one tolerated failure code; see the docblock for why.
+- **A nonexistent group** answers `200` / `success="T"` with the `groupResults` key **absent entirely** —
+  not an empty array, and not a 404.
+- **The version segment is not validated.** A deliberately bogus `v9_9_999` returned all 357 groups.
+  `clientVersion` is kept because a future Grouper may start enforcing it, and it costs nothing.
+
+Still unverified:
+
+3. **That a real subject in a real stem with no matching groups returns `success="T"`.** Every live
+   lookup tried so far returned at least one group, so the empty case is still inferred rather than
+   observed. The inference is strong — `findGroups` returns `success="T"` with the results key absent for
+   a group that does not exist — but it is the one remaining assumption the library could still be wrong
+   about.
 
 Replace the fixtures with recorded real responses once credentials exist.
 

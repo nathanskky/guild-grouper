@@ -1,0 +1,16 @@
+{
+  "WsGetGroupsLiteResult": {
+    "resultMetadata": {
+      "resultCode": "SUBJECT_NOT_FOUND",
+      "resultMessage": "There were 0 successes and 1 failures of groups retrieved for subjects.Problem with subjectLookup, SUBJECT_NOT_FOUND, WsSubjectLookup[\n  cause=edu.internet2.middleware.subject.SubjectNotFoundException: subject not found: ghost,\n  subjectFindResult=SUBJECT_NOT_FOUND,subjectId=ghost],",
+      "success": "F"
+    },
+    "responseMetadata": {
+      "millis": "38",
+      "serverVersion": "4.24.0"
+    },
+    "wsSubject": {
+      "id": "ghost"
+    }
+  }
+}

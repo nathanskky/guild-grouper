@@ -79,7 +79,19 @@ final readonly class GrouperClient
             return $response;
         }
 
-        $result = $this->resultOrFail((string) $response->getBody(), 'WsGetGroupsLiteResult');
+        $result = $this->envelope((string) $response->getBody(), 'WsGetGroupsLiteResult');
+
+        // Grouper answers 404 / SUBJECT_NOT_FOUND when the username is not a
+        // subject at all -- a deprovisioned account, a guest, or a typo. That is
+        // an empty membership, not a failure: an authorization check denies on
+        // an empty membership, which is the right outcome for an unknown user,
+        // whereas throwing would turn a deprovisioned account hitting the app
+        // into a 500 rather than a clean denial.
+        if ($this->metadataString($result['resultMetadata'] ?? null, 'resultCode') === 'SUBJECT_NOT_FOUND') {
+            return new GroupMembership($username, []);
+        }
+
+        $this->assertSuccess($result);
 
         return new GroupMembership($username, $this->groupsFrom($result, 'wsGroups'));
     }
@@ -117,7 +129,8 @@ final readonly class GrouperClient
             return $response;
         }
 
-        $result = $this->resultOrFail((string) $response->getBody(), 'WsFindGroupsResults');
+        $result = $this->envelope((string) $response->getBody(), 'WsFindGroupsResults');
+        $this->assertSuccess($result);
 
         return $this->groupsFrom($result, 'groupResults') !== [];
     }
@@ -172,11 +185,14 @@ final readonly class GrouperClient
     }
 
     /**
-     * Decode an envelope and return the inner result, or throw.
+     * Decode a response and return the inner result, or throw.
+     *
+     * Success is deliberately not checked here: groupsFor() has to inspect the
+     * result code before deciding, because one failure code is tolerated.
      *
      * @return array<string, mixed>
      */
-    private function resultOrFail(string $body, string $wrapperKey): array
+    private function envelope(string $body, string $wrapperKey): array
     {
         $decoded = json_decode($body, true);
 
@@ -189,10 +205,16 @@ final readonly class GrouperClient
         /** @var array<string, mixed> $result */
         $result = $decoded[$wrapperKey];
 
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function assertSuccess(array $result): void
+    {
         $metadata = $result['resultMetadata'] ?? null;
-        $success = is_array($metadata) && isset($metadata['success']) && is_string($metadata['success'])
-            ? $metadata['success']
-            : null;
+        $success = $this->metadataString($metadata, 'success');
 
         if ($success !== 'T') {
             throw new GrouperResponseException(sprintf(
@@ -202,8 +224,6 @@ final readonly class GrouperClient
                 $this->metadataString($metadata, 'resultMessage') ?? 'no message',
             ));
         }
-
-        return $result;
     }
 
     /**
