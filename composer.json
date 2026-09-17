@@ -1,0 +1,49 @@
+{
+    "name": "guild/grouper",
+    "description": "IU Grouper group-membership lookup for PHP.",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Nathan Skky Rodriguez",
+            "email": "nsrodrig@iu.edu"
+        }
+    ],
+    "require": {
+        "php": "~8.5.0",
+        "guzzlehttp/guzzle": "^7.10",
+        "psr/log": "^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^13.0",
+        "phpstan/phpstan": "^2.2",
+        "laravel/pint": "^1.32"
+    },
+    "autoload": {
+        "psr-4": {
+            "Guild\\Grouper\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Guild\\Grouper\\Test\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "format": "pint",
+        "format:check": "pint --test",
+        "check": [
+            "@test",
+            "@analyse",
+            "@format:check"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the guild-grouper test suite (fails if no tests run).",
+        "analyse": "Run PHPStan at level max over src/.",
+        "format": "Auto-fix code style with Pint (PSR-12).",
+        "format:check": "Check code style with Pint (PSR-12) without modifying files.",
+        "check": "Run tests, static analysis, then style check. Stops at the first failure."
+    }
+}
