@@ -14,16 +14,35 @@ use Guild\Grouper\Exception\GrouperConfigurationException;
 final readonly class GrouperConfiguration
 {
     /**
+     * The stem holding groups managed through ACM (Access Control Management),
+     * the tool IU users administer group membership with.
+     *
+     * This is the default because ACM-managed groups are what an application
+     * authorises against: the other institutional stems hold different things
+     * (`iu:bundles` compliance bundles, `iu:entlmt:app` entitlements) and are
+     * not what an access-control check is asking about.
+     *
+     * Measured against one real account: 183 of its 357 groups live here, and
+     * the namespace is flat -- every one of them sits exactly one level below
+     * this stem.
+     */
+    public const string ACM_STEM = 'iu:roles:sys:acm';
+
+    /**
      * Base URL with any trailing slash removed. Operation paths carry their own
      * version segment (see GrouperClient) and are appended to this directly.
      */
     public string $serviceUrl;
 
     /**
-     * The stem membership queries are scoped to, or null for an unscoped,
-     * institution-wide lookup. Blank input is normalised to null: a blank stem
-     * is far more often an unset environment variable than a deliberate choice,
-     * and sending an empty stemName would be rejected by Grouper anyway.
+     * The stem membership queries are scoped to. Defaults to ACM_STEM; an
+     * explicit null asks for every group the user belongs to institution-wide.
+     *
+     * Blank input normalises to null rather than throwing, so an unset
+     * GROUPER_STEM degrades to a broad lookup instead of a boot failure. Note
+     * that this makes a blank value mean something different from an omitted
+     * one, which is deliberate: omitting is the common case and should land on
+     * the useful default, while explicitly blanking it is an opt-out.
      */
     public ?string $stem;
 
@@ -43,7 +62,7 @@ final readonly class GrouperConfiguration
         string $serviceUrl,
         public string $username,
         public string $password,
-        ?string $stem = null,
+        ?string $stem = self::ACM_STEM,
         string $clientVersion = 'v2_5_000',
     ) {
         if (trim($clientVersion) === '') {

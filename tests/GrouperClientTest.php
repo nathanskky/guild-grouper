@@ -437,6 +437,7 @@ final class GrouperClientTest extends TestCase
             serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
             username: 'svc',
             password: 'secret',
+            stem: null,
         );
 
         return new GrouperClient($config, new Client(['handler' => $stack]));

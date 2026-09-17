@@ -60,12 +60,11 @@ final class GrouperConfigurationTest extends TestCase
     }
 
     /**
-     * The stem is optional, matching Grouper itself -- stemName is not a
-     * required parameter on getGroupsLite. Omitting it asks for every group the
-     * user belongs to institution-wide, which is a broad and slow query, but a
-     * legitimate one.
+     * ACM (Access Control Management) is the tool IU users manage groups with,
+     * so ACM-managed groups are what an application authorises against. That
+     * makes its stem the right default for a group-membership lookup.
      */
-    public function test_it_accepts_a_configuration_with_no_stem(): void
+    public function test_it_defaults_to_the_acm_stem(): void
     {
         $config = new GrouperConfiguration(
             serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
@@ -73,7 +72,25 @@ final class GrouperConfigurationTest extends TestCase
             password: 'p',
         );
 
-        self::assertNull($config->stem, 'an unscoped lookup is allowed');
+        self::assertSame('iu:roles:sys:acm', $config->stem);
+        self::assertSame(GrouperConfiguration::ACM_STEM, $config->stem);
+    }
+
+    /**
+     * The stem stays optional -- stemName is not required by Grouper. Passing
+     * null explicitly asks for every group the user belongs to
+     * institution-wide: legitimate, but broad and slow.
+     */
+    public function test_an_explicit_null_stem_means_an_unscoped_lookup(): void
+    {
+        $config = new GrouperConfiguration(
+            serviceUrl: 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest',
+            username: 'svc',
+            password: 'p',
+            stem: null,
+        );
+
+        self::assertNull($config->stem, 'an unscoped lookup is opted into, not stumbled into');
     }
 
     /**

@@ -45,7 +45,8 @@ $config = new GrouperConfiguration(
     serviceUrl: $_ENV['GROUPER_URL'],      // e.g. 'https://grouperws.apps.iu.edu/grouper-ws/servicesRest'
     username:   $_ENV['GROUPER_USER'],
     password:   $_ENV['GROUPER_PASSWORD'],
-    stem:       $_ENV['GROUPER_STEM'],     // optional; e.g. 'iu:roles:sys:acm'
+    // stem defaults to 'iu:roles:sys:acm' (ACM-managed groups) -- usually
+    // what you want, so you can leave it out entirely.
 );
 ```
 
@@ -55,7 +56,7 @@ $config = new GrouperConfiguration(
 | `username` | `string` | Service-account username, sent as HTTP Basic auth. |
 | `password` | `string` | Service-account password. |
 | `clientVersion` | `string` | Default `'v2_5_000'`. The Grouper *client* version — the API contract a client is coded against. See [Client version](#client-version). |
-| `stem` | `?string` | Optional. The stem membership queries are scoped to. Blank or omitted means an **unscoped, institution-wide lookup** — every group the user belongs to. See [Choosing a stem](#choosing-a-stem). |
+| `stem` | `?string` | Defaults to `GrouperConfiguration::ACM_STEM` (`iu:roles:sys:acm`). Pass `null` explicitly for an **unscoped, institution-wide lookup**. See [Choosing a stem](#choosing-a-stem). |
 
 Invalid configuration throws `GrouperConfigurationException` at construction, so a misconfigured
 deployment fails at boot rather than on the first authorization check.
@@ -84,32 +85,41 @@ moving to a newer contract is a configuration change rather than a code change.
 
 ### Choosing a stem
 
-`stemName` is optional in Grouper's own API, and it is optional here. The trade-off:
+**The default is `iu:roles:sys:acm`, and most applications should leave it alone.**
 
-- **With a stem**, the lookup is scoped to that subtree (`stemScope=ALL_IN_SUBTREE`) — faster, and it
-  returns only groups the application has a reason to see.
-- **Without one**, Grouper returns every group the user belongs to, institution-wide.
+ACM — Access Control Management — is the tool IU users administer group membership with. Groups created
+and managed there live under that stem, which makes them precisely what an application's access-control
+check is asking about. The other institutional stems hold different things: `iu:bundles` is compliance
+bundles, `iu:entlmt:app` is entitlements. Neither is what "may this person edit content" means.
 
-Measured against a real IU account, the difference is large:
+Measured against one real IU account, 183 of its 357 groups were ACM groups, and the namespace is flat —
+every one sat exactly one level below the stem.
+
+```php
+// The default: ACM-managed groups.
+new GrouperConfiguration(serviceUrl: $url, username: $u, password: $p);
+
+// A different stem, if you genuinely need one.
+new GrouperConfiguration(serviceUrl: $url, username: $u, password: $p, stem: 'iu:bundles');
+
+// Unscoped: every group, institution-wide. Slow -- see below.
+new GrouperConfiguration(serviceUrl: $url, username: $u, password: $p, stem: null);
+```
+
+An unscoped lookup returns every group the user belongs to anywhere at the institution. Measured against
+a real account, the difference is large:
 
 | Query | Groups | Time |
 |---|---:|---:|
 | Unscoped, institution-wide | 357 | 5618 ms |
-| `stemName=iu:roles:sys` | 187 | 814 ms |
-| `stemName=iu:entlmt:app` | 144 | 728 ms |
-| `stemName=iu:bundles` | 20 | **158 ms** |
+| `iu:roles:sys` | 187 | 814 ms |
+| `iu:entlmt:app` | 144 | 728 ms |
+| `iu:bundles` | 20 | **158 ms** |
 
-A stem is worth 7–35× here. Use one whenever you know it.
+A stem is worth 7–35× here, which is the other reason to keep the default.
 
-Note that a stem which does not exist is an **error**, not an empty result: Grouper answers
-`400 INVALID_QUERY` with "Stem not found", and `groupsFor()` throws `GrouperResponseException`.
-
-IU applications commonly query shared institutional stems rather than owning a subtree of their own —
-`iu:roles:sys:acm` (ACM roles) and `iu:bundles` (compliance bundles) are the usual ones. In that model the
-stem narrows the query and your group identifiers do the actual selecting.
-
-A blank stem is normalised to `null` rather than rejected, so an unset `GROUPER_STEM` degrades to an
-unscoped lookup instead of a boot failure. If a stem is important to your deployment, assert it yourself.
+A stem that does not exist is an **error**, not an empty result: Grouper answers `400 INVALID_QUERY` with
+"Stem not found", and `groupsFor()` throws `GrouperResponseException`.
 
 **One client is scoped to one stem.** To query two stems — ACM roles *and* bundles, say — construct two
 clients, or configure no stem and filter by group identifier.

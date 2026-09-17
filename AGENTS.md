@@ -146,12 +146,25 @@ Two more worth knowing:
   `GROUPER_STEM` degrades to a broad institution-wide lookup rather than failing at boot. That is a
   deliberate trade and worth knowing when a lookup is mysteriously slow.
 
-**On stem conventions:** the two .NET reference clients hard-code their stems as string literals inside
-their JSON bodies — `iu:roles:sys:acm`, `iu:roles:sys:acmex` and `iu:bundles`, chosen per method. They are
-shared *institutional* stems, not per-application subtrees, which is why callers of those clients never
-pass a stem and may not realise one is being applied. Expect IU deployments to look like that rather than
-like an `iu:apps:your-app` subtree. One `GrouperClient` is scoped to one stem; two stems means two
-clients, or no stem plus filtering by identifier.
+**On stem conventions:** IU applications query shared *institutional* stems, not per-application
+subtrees. Do not expect an `iu:apps:your-app` model.
+
+**`iu:roles:sys:acm` is the one that matters, and it is the default.** ACM — Access Control Management —
+is the tool IU users administer group membership with, so ACM-managed groups are what an application
+authorises against. The other stems the .NET clients hard-code hold different things: `iu:bundles` is
+compliance bundles, `iu:entlmt:app` is entitlements. Neither answers "may this person edit content".
+
+Measured on one real account: 183 of 357 groups under `iu:roles:sys:acm`, 4 under `iu:roles:sys:acmex`,
+and the ACM namespace is **flat** — all 183 exactly one level below the stem. (183 + 4 = the 187 that a
+scoped `iu:roles:sys` lookup returns, which is a useful consistency check.)
+
+One `GrouperClient` is scoped to one stem; two stems means two clients, or `stem: null` plus filtering by
+identifier.
+
+**This library sends `stemScope=ALL_IN_SUBTREE` where the .NET clients send `ONE_LEVEL`.** Against a flat
+ACM namespace the two return identical results, so the difference is currently invisible. It is
+deliberate: if ACM ever nests a group, `ONE_LEVEL` would silently miss it, and a missed group means
+wrongly denying someone access. `ALL_IN_SUBTREE` fails in the safer direction.
 
 ## Reference material
 
