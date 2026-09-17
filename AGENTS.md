@@ -35,7 +35,7 @@ These repos are developed side by side but are **independent git repos**. There 
 |---|---|---|
 | `guild/grouper` *(this one)* | `Guild\Grouper\` | Grouper group-membership lookup |
 | `guild/access` | `Guild\Access\` | IU Login (OIDC) authentication. Independent of this package |
-| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. The intended consumer |
+| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1`, via VCS repo), though nothing in it consumes the client yet |
 | `guild/starter` | `Guild\Starter\` | Runnable example app |
 | `guild/rivet` | `Guild\Rivet\` | IU Rivet Design System components. Independent |
 
@@ -108,46 +108,49 @@ capture the outgoing request; see `clientReturning()` and `clientThrowing()` in 
 
 ## Landmines
 
-These are the things about Grouper's API that are easy to get wrong. All three are handled in one place
+These are the things about Grouper's API that are easy to get wrong. All of them are handled in one place
 in `GrouperClient`; keep them there.
 
-- **Every Grouper v4 operation is POST.** All 65 paths in the specification are POST — there is no GET
-  operation anywhere. The Lite variants take **form-encoded** parameters (`form_params` in Guzzle),
-  **never a JSON body**. If you find yourself writing `'json' =>`, stop.
+- **Grouper routes on URL path segments.** Each operation is *addressed*, not merely named in the body.
+  `groupsFor()` posts to `{version}/subjects/{subject}/groups`; `groupExists()` posts to
+  `{version}/groups`. Get it wrong and Grouper answers `INVALID_QUERY` telling you which segment it
+  expected — `/groups` wants a following `members` or `memberships`, `/subjects` wants `groups` or
+  `memberships`. This cost a full round of live debugging; do not re-derive it.
+- **The two operations use different transports, and that is correct.** `groupsFor()` sends the
+  form-encoded Lite shape and names itself in `wsLiteObjectType`. `groupExists()` sends a **JSON body**
+  and names itself in the wrapper key `WsRestFindGroupsRequest`. Both are verified against production.
+  Do not "fix" the inconsistency by unifying them — the form-encoded shape does not work for findGroups,
+  and that is how the bug that shipped in `groupExists()` originally happened.
 - **Success is signalled by `resultMetadata.success`**, a string `"T"`/`"F"`, **not by the HTTP status
-  alone.** A 200 can carry a failure. Never infer success from the status code.
+  alone.** A 200 can carry a failure, and a 404 can carry a result you want (`SUBJECT_NOT_FOUND`).
+  Never infer success from the status code.
+- **Grouper reports "nothing found" by omitting the key entirely.** No `wsGroups`, no `groupResults` —
+  not an empty array. `groupsFrom()` treats an absent key and an empty array alike, which is why it
+  works; keep that property if you touch it.
 - **The version segment in the path is the *client* version, not a per-endpoint version.** It is the API
-  contract the client is coded against, Grouper uses it for backwards compatibility, and it is one value
-  for every operation — `GrouperConfiguration::$clientVersion`, defaulting to `v2_5_000`, the version
-  IU's production .NET clients run against.
+  contract the client is coded against, and it is one value for every operation —
+  `GrouperConfiguration::$clientVersion`, defaulting to `v2_5_000`, the version IU's production .NET
+  clients run against. **IU's Grouper does not appear to validate it**: a bogus `v9_9_999` returned a
+  complete, correct result. It is kept in case that changes.
 
-  **The published Swagger makes this look otherwise, and it is wrong.** It documents `getGroupsLite` at
-  `v4_0_440` and `findGroupsLite` at `v4_0_330`. Sort all 65 paths by `operationId` and they run
-  `v4_0_010`, `v4_0_030`, `v4_0_040` … `v4_0_660` — strict alphabetical order, stepping by ten. Those are
-  synthetic sequence numbers from the doc generator, not versions; `getGroupsLite` is simply the 44th
-  operation alphabetically. IU's own .NET clients set the version once in their base URL and append only
-  the resource, which is the correct shape. Keep the version in configuration; it does not belong in
+  **The published Swagger makes the versioning look per-operation, and it is wrong.** It documents
+  `getGroupsLite` at `v4_0_440` and `findGroupsLite` at `v4_0_330`. Sort all 65 paths by `operationId`
+  and they run `v4_0_010`, `v4_0_030`, `v4_0_040` … `v4_0_660` — strict alphabetical order, stepping by
+  ten. Those are synthetic sequence numbers from the doc generator, not versions; `getGroupsLite` is
+  simply the 44th operation alphabetically. Keep the version in configuration; it does not belong in
   per-operation constants.
-- **Both Lite operations post to the same `/groups` resource**, so the path cannot say which is meant.
-  `wsLiteObjectType` is the discriminator — `WsRestGetGroupsLiteRequest` vs
-  `WsRestFindGroupsLiteRequest` — which is why the spec declares it required.
-
-Two more worth knowing:
-
-- **`wsLiteObjectType`'s documented *value* is untrustworthy even though the parameter is real.** All 29
-  Lite operations declare the identical description `WsRestFindGroupsLiteRequest`, including
-  `addMemberLite`, which plainly does not take one — the generator lost the per-operation value. The
-  parameter itself is genuine and necessary (it is the operation discriminator), so this library sends the
-  value each operation's own request class implies. If a live call is answered by the *wrong* operation,
-  suspect these strings.
-- **`groupName` cannot be combined with other search parameters** in `findGroupsLite`, per Grouper's own
+- **`wsLiteObjectType` is required for the form-encoded shape, but its documented *value* is
+  untrustworthy.** Omit it and `groupsFor()` fails with a 500, "Invalid POST request" — the parameter is
+  real. But all 29 Lite operations in the Swagger declare the identical description
+  `WsRestFindGroupsLiteRequest`, `addMemberLite` included, so the generator clearly lost the
+  per-operation value. This library sends what each operation's own request class implies. If a live call
+  is answered by the *wrong* operation, suspect these strings.
+- **`groupName` cannot be combined with other search parameters** in findGroups, per Grouper's own
   parameter documentation. This is why `groupExists()` does not send `stemName` and expects fully
   qualified identifiers.
-- **`stemName` is optional, and so is the configured stem.** With no stem, `groupsFor()` omits both
-  `stemName` and `stemScope` — they travel together, because Grouper documents stemScope as meaningful
-  only alongside a stem. A blank stem normalises to `null` rather than throwing, so an unset
-  `GROUPER_STEM` degrades to a broad institution-wide lookup rather than failing at boot. That is a
-  deliberate trade and worth knowing when a lookup is mysteriously slow.
+- **A blank stem normalises to `null`, which means unscoped.** So `stem: $_ENV['GROUPER_STEM'] ?? ''`
+  with the variable unset silently gives a 5.6-second institution-wide query instead of the ACM default.
+  Omitting the argument is the safe way to get the default.
 
 **On stem conventions:** IU applications query shared *institutional* stems, not per-application
 subtrees. Do not expect an `iu:apps:your-app` model.
@@ -158,8 +161,9 @@ authorises against. The other stems the .NET clients hard-code hold different th
 compliance bundles, `iu:entlmt:app` is entitlements. Neither answers "may this person edit content".
 
 Measured on one real account: 183 of 357 groups under `iu:roles:sys:acm`, 4 under `iu:roles:sys:acmex`,
-and the ACM namespace is **flat** — all 183 exactly one level below the stem. (183 + 4 = the 187 that a
-scoped `iu:roles:sys` lookup returns, which is a useful consistency check.)
+and the ACM namespace is **flat** — all 183 exactly one level below the stem. (183 + 4 = 187, which is
+what a *subtree* search of `iu:roles:sys` returns. A `ONE_LEVEL` search of that same parent stem returns
+**zero** — see the landmine below.)
 
 One `GrouperClient` is scoped to one stem; two stems means two clients, or `stem: null` plus filtering by
 identifier.
@@ -193,42 +197,54 @@ the base URL once rather than per operation, the operation is named in the reque
 and Grouper's envelopes are worth flattening into small DTOs. Their `v2_5_000` is also where this
 library's default client version comes from — it is the version IU's deployment is known to accept.
 
+## Verification status
+
+**Every behaviour this library commits to has been exercised against IU's production Grouper** (server
+`4.24.0`) with a real service account. Confirmed:
+
+| Condition | Grouper's answer |
+|---|---|
+| Subject with groups | `200`, `success="T"`, `wsGroups` populated |
+| Subject with no matching groups | `200`, `success="T"`, **`wsGroups` absent entirely** |
+| Nonexistent subject | `404`, `success="F"`, `SUBJECT_NOT_FOUND` — reported as an empty membership |
+| Nonexistent stem | `400`, `success="F"`, `INVALID_QUERY` / "Stem not found" |
+| Nonexistent group (findGroups) | `200`, `success="T"`, `groupResults` absent |
+| Missing `wsLiteObjectType` | `500`, "Invalid POST request" |
+| Bogus client version | `200` and a correct result — the segment is not validated |
+
+The empty-membership case is **observed, not inferred** — a real subject against a real stem at
+`ONE_LEVEL` where every matching group sits deeper. That is the behaviour the whole design rests on, so
+it was worth forcing rather than assuming.
+
+**The one thing still fixture-driven is Grouper being *down*.** `GrouperUnavailable` — connect failures,
+429s, 5xx — cannot be produced on demand against a healthy service, so those paths are proven only by
+`MockHandler`. That is precisely the shape of evidence that hid the original `groupExists()` bug, so
+treat that branch with more suspicion than the rest.
+
+### Re-verifying after a Grouper upgrade
+
+Verification needs no application: this package has no first-party dependencies, so a standalone script
+calling it directly is the shortest path to the wire. **Do not route verification through `starter` or
+Docker** — every layer in between is somewhere a failure can hide.
+
+`.env.grouper.local.example` records the environment variables such a script needs. Copy it to
+`.env.grouper.local`, which the existing `*.env*` rule already gitignores — confirm with
+`git check-ignore -v .env.grouper.local` before putting a password in it.
+
 ## Fixtures
 
-**Every fixture here is a real recorded response from IU's production Grouper (server 4.24.0), with group
-and person identities anonymised.** Keep it that way when re-recording -- these files are destined for a
-public repository and the raw responses describe one person's institutional access.
+**Every fixture is a real recorded response from IU's production Grouper (server 4.24.0), with group and
+person identities anonymised.** Keep both properties when re-recording: the shape must stay real, and the
+identities must not. These files are in a public repository, and a raw response describes one person's
+institutional access.
 
-**`tests/fixture/membership-two-groups.json` carries the envelope of a real recorded response** — the
-nine-field `WsGroup`, the five-field `wsSubject`, and the real `resultMetadata`/`responseMetadata` shape
-from Grouper 4.24.0. **The group identities in it are anonymised**, so the file does not publish one
-person's institutional access; keep it that way when re-recording.
+`membership-two-groups.json` carries the full recorded envelope — the nine-field `WsGroup`, the
+five-field `wsSubject`, and the real `resultMetadata`/`responseMetadata`. Its second group deliberately
+omits `description`, because 4 of 357 groups in the recorded response had none; that is the case
+`GrouperGroup::$description` being nullable exists for.
 
-Its second group deliberately omits `description`, because 4 of 357 groups in the recorded response had
-none. That is the case `GrouperGroup::$description` being nullable exists for.
-
-Verified against IU's production Grouper (server 4.24.0) with a real service account:
-
-- **The request shapes**, both of them — see the landmines above.
-- **Stem scoping works and matters.** Unscoped: 357 groups, 5618 ms. `iu:roles:sys`: 187, 814 ms.
-  `iu:bundles`: 20, 158 ms.
-- **A nonexistent stem is an error**, `400 INVALID_QUERY` / "Stem not found" — not an empty result.
-- **A nonexistent subject** answers `404` / `SUBJECT_NOT_FOUND`, which `groupsFor()` deliberately reports
-  as an empty membership. It is the one tolerated failure code; see the docblock for why.
-- **A nonexistent group** answers `200` / `success="T"` with the `groupResults` key **absent entirely** —
-  not an empty array, and not a 404.
-- **The version segment is not validated.** A deliberately bogus `v9_9_999` returned all 357 groups.
-  `clientVersion` is kept because a future Grouper may start enforcing it, and it costs nothing.
-
-Still unverified:
-
-3. **That a real subject in a real stem with no matching groups returns `success="T"`.** Every live
-   lookup tried so far returned at least one group, so the empty case is still inferred rather than
-   observed. The inference is strong — `findGroups` returns `success="T"` with the results key absent for
-   a group that does not exist — but it is the one remaining assumption the library could still be wrong
-   about.
-
-Replace the fixtures with recorded real responses once credentials exist.
+`membership-no-groups.json` and `group-not-found.json` both omit their results key entirely rather than
+carrying an empty array, because that is what Grouper actually sends. Do not "tidy" them into `[]`.
 
 ## Branching and pull requests
 
@@ -242,7 +258,9 @@ feature branch  --PR-->  develop  --PR-->  main  --> tag (release)
 ```
 
 Consumers require tagged versions, so **"merged into `develop`" and "released" are two different
-states**. A consumer that cannot see your change has almost always hit exactly that.
+states**. A consumer that cannot see your change has almost always hit exactly that. `guild/framework`
+requires `^0.1`, so a change reaches it only after a new tag is cut on `main` — merging to `develop` is
+not enough.
 
 For a local iteration loop, temporarily add a path repository to the consumer's `composer.json` above its
 VCS entries, and revert it before committing:

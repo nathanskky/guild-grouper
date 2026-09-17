@@ -8,9 +8,9 @@ Grouper web services API.
 **It is read-only.** There is no `addMember()`, `removeMember()`, `createGroup()` or anything like them,
 and there will not be. Group membership is managed in Grouper itself. This library only reads.
 
-Its consumer is the framework's authorization layer. It is not an app-developer-facing service, and it
-takes no position on what an application should do when Grouper is unreachable — it reports the condition
-and lets the caller decide.
+Its intended consumer is `guild/framework`'s authorization layer rather than application code directly,
+but the API is small and documented here in full either way. It takes no position on what an application
+should do when Grouper is unreachable — it reports the condition and lets the caller decide.
 
 > **Pre-1.0.** The public API is verified against IU's production Grouper and the test suite is green,
 > but the version is deliberately `0.x` pending a full code review. Treat minor releases as potentially
@@ -60,7 +60,7 @@ $config = new GrouperConfiguration(
 | `username` | `string` | Service-account username, sent as HTTP Basic auth. |
 | `password` | `string` | Service-account password. |
 | `clientVersion` | `string` | Default `'v2_5_000'`. The Grouper *client* version — the API contract a client is coded against. See [Client version](#client-version). |
-| `stem` | `?string` | Defaults to `GrouperConfiguration::ACM_STEM` (`iu:roles:sys:acm`). Pass `null` explicitly for an **unscoped, institution-wide lookup**. See [Choosing a stem](#choosing-a-stem). |
+| `stem` | `?string` | Defaults to `GrouperConfiguration::ACM_STEM` (`iu:roles:sys:acm`). `null` **or a blank string** means an unscoped, institution-wide lookup — so `stem: $_ENV['GROUPER_STEM'] ?? ''` with the variable unset silently gives you the slow query, not the default. Omit the argument instead. See [Choosing a stem](#choosing-a-stem). |
 
 Invalid configuration throws `GrouperConfigurationException` at construction, so a misconfigured
 deployment fails at boot rather than on the first authorization check.
@@ -79,8 +79,11 @@ $config = new GrouperConfiguration(
 ```
 
 The default is `v2_5_000` — the version IU's production .NET clients run against, and so the one
-empirically known to work against IU's deployment. Grouper keeps older client versions working, so
-moving to a newer contract is a configuration change rather than a code change.
+empirically known to work against IU's deployment.
+
+**In practice IU's Grouper does not appear to validate this at all.** A deliberately bogus `v9_9_999`
+returned a complete, correct result. The setting is kept because a future Grouper may begin enforcing it
+and it costs nothing to carry, but do not treat it as a working compatibility dial today.
 
 > The published Swagger appears to show a different version per operation — `getGroupsLite` at
 > `v4_0_440`, `findGroupsLite` at `v4_0_330`. It does not. Sorted by operation name, all 65 paths run
@@ -110,26 +113,32 @@ new GrouperConfiguration(serviceUrl: $url, username: $u, password: $p, stem: 'iu
 new GrouperConfiguration(serviceUrl: $url, username: $u, password: $p, stem: null);
 ```
 
-An unscoped lookup returns every group the user belongs to anywhere at the institution. Measured against
-a real account, the difference is large:
+An unscoped lookup returns every group the user belongs to anywhere at the institution, which is both
+slow and mostly irrelevant to an access-control question.
 
-| Query | Groups | Time |
-|---|---:|---:|
-| Unscoped, institution-wide | 357 | 5618 ms |
-| `iu:roles:sys` | 187 | 814 ms |
-| `iu:entlmt:app` | 144 | 728 ms |
-| `iu:bundles` | 20 | **158 ms** |
+**Lookups use `stemScope=ONE_LEVEL`**, matching IU's production clients, because ACM's namespace is flat.
+That makes the stem you choose an exact-depth match, not a subtree search — which is the single most
+important thing to understand here. Measured against one real IU account:
 
-A stem is worth 7–35× here, which is the other reason to keep the default.
+| `stem` | Groups returned | Notes |
+|---|---:|---|
+| *(default)* `iu:roles:sys:acm` | **183** | ACM-managed groups — what you want |
+| `iu:bundles` | 20 | Also flat, so it behaves |
+| `iu:roles:sys` | **0** | A *parent* of the ACM stem. Its 187 groups all sit one level deeper |
+| `iu:entlmt:app` | **0** | Same trap — its 144 groups sit deeper |
+| `null` *(unscoped)* | 357 | Everything, everywhere |
+
+The unscoped lookup took **5618 ms**; scoped lookups were consistently sub-second. That speed difference
+is the second reason to keep the default, after correctness.
 
 Two ways a stem can disappoint you quietly:
 
+- **A stem whose groups sit deeper than one level returns nothing, successfully.** Not an error — a
+  `success="T"` response with no groups at all, indistinguishable from a user who genuinely has none. The
+  `iu:roles:sys` and `iu:entlmt:app` rows above are exactly this. **If a custom stem yields empty
+  memberships for everyone, check its depth before anything else.**
 - **A stem that does not exist is an error**, not an empty result. Grouper answers `400 INVALID_QUERY`
   with "Stem not found", and `groupsFor()` throws `GrouperResponseException`.
-- **A stem whose groups sit deeper than one level returns nothing, successfully.** Lookups use
-  `stemScope=ONE_LEVEL`, matching IU's production clients, because ACM's namespace is flat. Point the
-  library at a *parent* stem such as `iu:roles:sys` and every user will come back with no groups and no
-  error. If a custom stem yields empty memberships for everyone, that is the first thing to check.
 
 **One client is scoped to one stem.** To query two stems — ACM roles *and* bundles, say — construct two
 clients, or configure no stem and filter by group identifier.
@@ -176,7 +185,7 @@ if ($result instanceof GrouperUnavailable) {
 }
 
 // $result is a GroupMembership from here on.
-return $result->belongsTo('iu:apps:your-app:editors');
+return $result->belongsTo('iu:roles:sys:acm:your-app-editors');
 ```
 
 The `instanceof` check is not optional politeness. PHPStan at level `max` rejects `->groups` on the
@@ -199,7 +208,7 @@ looks exactly like a correctly configured group that happens to be empty.
 could not ask" should not be indistinguishable. Only one of them means somebody has to go fix something.
 
 ```php
-$exists = $client->groupExists('iu:apps:your-app:editors');
+$exists = $client->groupExists('iu:roles:sys:acm:your-app-editors');
 
 if ($exists instanceof GrouperUnavailable) {
     // Unknown — do not tell the administrator their group is missing.
@@ -213,7 +222,7 @@ if ($exists instanceof GrouperUnavailable) {
 | Type | Meaning |
 |------|---------|
 | `GroupMembership` | A username and its `list<GrouperGroup>`. `belongsTo(string $identifier): bool` matches on the group's **system name**, not its display name. An empty list is valid. |
-| `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:apps:x:editors`), `displayName`, `uuid`, and an optional `description`. |
+| `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:roles:sys:acm:your-app-editors`), `displayName`, `uuid`, and an optional `description`. |
 | `GrouperUnavailable` | **Returned, not thrown.** Grouper could not be reached; membership is unknown. Carries `reason`, an optional `statusCode`, and the optional underlying `previous` throwable. |
 | `GrouperConfigurationException` | **Thrown.** Extends `LogicException`. Bad configuration, or credentials Grouper rejected (401/403) — a deployment error a human must fix. |
 | `GrouperResponseException` | **Thrown.** Extends `RuntimeException`. Grouper answered with something unrecognisable, or reported `success="F"`. Carries Grouper's `resultCode` and `resultMessage`. |
@@ -226,15 +235,30 @@ deployment run indefinitely with an authorization layer that silently denies eve
 
 ### How outcomes map
 
+Both methods share the transport rules:
+
 | Condition | Result |
 |---|---|
 | Connection failure, timeout | `GrouperUnavailable`, `statusCode` `null` |
 | HTTP 429, or any 5xx | `GrouperUnavailable` with the status |
 | HTTP 401, 403 | throws `GrouperConfigurationException` |
-| A group that does not exist | `false` — Grouper answers `success="T"` with no `groupResults` key |
-| 200 with `success="T"` | `GroupMembership` (possibly empty) |
-| 404 `SUBJECT_NOT_FOUND` | **empty `GroupMembership`** — see [Unknown users](#unknown-users) |
-| 200 with `success="F"`, or an unrecognisable body | throws `GrouperResponseException` |
+| An unrecognisable body | throws `GrouperResponseException` |
+
+`groupsFor()` then adds:
+
+| Condition | Result |
+|---|---|
+| `success="T"` | `GroupMembership` — possibly empty, which is a valid answer |
+| `404` `SUBJECT_NOT_FOUND` | **empty `GroupMembership`** — see [Unknown users](#unknown-users) |
+| Any other `success="F"` | throws `GrouperResponseException` |
+
+`groupExists()` then adds:
+
+| Condition | Result |
+|---|---|
+| `success="T"` with `groupResults` | `true` |
+| `success="T"` with no `groupResults` key | `false` — this is how Grouper reports "no such group" |
+| Any `success="F"` | throws `GrouperResponseException` |
 
 ### Unknown users
 

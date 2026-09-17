@@ -19,20 +19,25 @@ use Psr\Http\Message\ResponseInterface;
  * delete, add-member or remove-member here, by design — group management is
  * done in Grouper itself, not through applications.
  *
- * Four things about Grouper's API are easy to get wrong, and all four are
+ * Five things about Grouper's API are easy to get wrong, and all five are
  * handled in one place here:
  *
- *  1. **Every operation is POST.** The published v4 specification contains no
- *     GET operation at all, and the Lite variants take form-encoded
- *     parameters, never a JSON body.
+ *  1. **Everything here is POST**, and the published v4 specification declares
+ *     no GET operation at all. (Live Grouper does answer GET for some of these,
+ *     but nothing in this library relies on that.)
  *  2. **Success is signalled by `resultMetadata.success`**, a string "T"/"F" —
- *     not by the HTTP status alone.
+ *     not by the HTTP status alone. A 200 can carry a failure.
  *  3. **The version segment in the path is the client version** — the API
  *     contract a client is coded against. One value serves every operation, and
  *     it comes from GrouperConfiguration::$clientVersion.
- *  4. **Both Lite operations address the same `/groups` resource**, so the path
- *     cannot distinguish them. `wsLiteObjectType` in the request body is the
- *     discriminator, which is why the API declares that parameter required.
+ *  4. **Grouper routes on URL path segments**, so each operation is addressed
+ *     rather than named in the body. `groupsFor()` posts to
+ *     `subjects/{subject}/groups`; `groupExists()` posts to `groups`. Posting
+ *     to the wrong one is answered with INVALID_QUERY, not a 404.
+ *  5. **The two operations use different transports**, which is genuinely how
+ *     Grouper works rather than an inconsistency here. `groupsFor()` is the
+ *     form-encoded Lite shape and names itself in `wsLiteObjectType`;
+ *     `groupExists()` sends a JSON body and names itself in the wrapper key.
  *
  * The published Swagger gives each operation its own version segment —
  * `getGroupsLite` at `v4_0_440`, `findGroupsLite` at `v4_0_330`. These are
@@ -151,16 +156,16 @@ final readonly class GrouperClient
     }
 
     /**
-     * Issue one form-encoded POST and classify the outcome.
+     * Issue one POST and classify the outcome.
      *
      * The split here is the library's central design decision. A condition that
      * may clear on its own is *returned* as GrouperUnavailable so the caller can
      * have a policy about it; a condition a human must fix is *thrown*.
      *
      * A 4xx that is neither a credential rejection nor throttling is returned as
-     * the response itself, because its meaning is operation-specific: a 404 from
-     * findGroupsLite means "no such group", while the same status from
-     * getGroupsLite means the integration is pointed somewhere wrong.
+     * the response itself, for the caller to interpret. Grouper puts real
+     * meaning in those bodies: a 404 carries SUBJECT_NOT_FOUND, and a 400
+     * carries INVALID_QUERY with the reason, both as ordinary result envelopes.
      *
      * @param  string  $resourcePath  Path below the version segment, already URL-encoded.
      * @param  array{form_params?: array<string, string>, json?: array<string, mixed>}  $body
