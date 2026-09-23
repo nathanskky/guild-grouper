@@ -35,9 +35,10 @@ These repos are developed side by side but are **independent git repos**. There 
 |---|---|---|
 | `guild/grouper` *(this one)* | `Guild\Grouper\` | Grouper group-membership lookup |
 | `guild/access` | `Guild\Access\` | IU Login (OIDC) authentication. Independent of this package |
-| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1`, via VCS repo); its authorization layer is the only consumer |
-| `guild/starter` | `Guild\Starter\` | Runnable example app |
+| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1.2`, via VCS repo) and exposes it through `addAuthorization()`; its authorization layer is the only consumer |
+| `guild/starter` | `Guild\Starter\` | Runnable example app. Gets this package transitively through `guild/framework` |
 | `guild/rivet` | `Guild\Rivet\` | IU Rivet Design System components. Independent |
+| `iu/notifications` | `IU\Notifications\` | IU Notifications client. Independent |
 
 This package has **no first-party dependencies**. Authentication (`guild/access`) and authorization are
 separate concerns in separate packages; do not merge them.
@@ -57,8 +58,8 @@ composer check         # test, then analyse, then style check; stops at the firs
 **This package is fully green. Keep it that way.** There is no baseline to take and no pre-existing
 failure to work around — any failure is yours.
 
-PHPStan runs at level `max`, the strictest setting in the workspace (`framework` is 10, `notification` is
-5). Do not assume one bar across the repos.
+PHPStan runs at level `max`, as `access` and `rivet` do; `framework` is 10, `notification` is 5, and
+`starter` runs none. Do not assume one bar across the repos.
 
 `phpunit.xml.dist` follows the framework's strictness rather than `access`'s: `requireCoverageMetadata`
 and `beStrictAboutCoverageMetadata` are on, so **a test class without `#[CoversClass]` fails the run**.
@@ -116,11 +117,11 @@ in `GrouperClient`; keep them there.
   to `{version}/groups`. Get it wrong and Grouper answers `INVALID_QUERY` telling you which segment it
   expected — `/groups` wants a following `members` or `memberships`, `/subjects` wants `groups` or
   `memberships`. This cost a full round of live debugging; do not re-derive it.
-- **The two operations use different transports, and that is correct.** `groupsFor()` sends the
-  form-encoded Lite shape and names itself in `wsLiteObjectType`. `groupExists()` sends a **JSON body**
-  and names itself in the wrapper key `WsRestFindGroupsRequest`. Both are verified against production.
-  Do not "fix" the inconsistency by unifying them — the form-encoded shape does not work for findGroups,
-  and that is how the bug that shipped in `groupExists()` originally happened.
+- **getGroups and findGroups use different transports, and that is correct.** `groupsFor()` sends the
+  form-encoded Lite shape and names itself in `wsLiteObjectType`. `groupExists()` and `findByLabel()`
+  send a **JSON body** and name themselves in the wrapper key `WsRestFindGroupsRequest`. All are verified
+  against production. Do not "fix" the inconsistency by unifying them — the form-encoded shape does not
+  work for findGroups, and that is how the bug that shipped in `groupExists()` originally happened.
 - **`FIND_BY_EXACT_ATTRIBUTE` rejects `stemNameScope`.** `findByLabel()` sends `stemName` alone; adding
   `stemNameScope` (either value) makes production answer `400 INVALID_QUERY`. `stemName` alone searches
   the **whole subtree**, unlike `groupsFor()`'s `ONE_LEVEL`, so `findByLabel()` drops matches deeper than
@@ -193,13 +194,14 @@ https://grouperws.apps.iu.edu/grouper-ws/docs/index.json
 Re-fetch it rather than trusting a restatement, including this one.
 
 **Do not port the .NET clients' transport** (`SP3.Grouper.Api`, `EA.Grouper.Api.Client`). They issue `GET`
-with a JSON body and name the operation in a `WsRest…Request` wrapper inside that body — a request shape
-that appears nowhere in the v4 specification, which is POST-only and form-encoded for the Lite variants.
+with a JSON body; the v4 specification is POST-only, and this library POSTs every operation to its own
+path (see the routing landmine above).
 
 They are worth reading for three things, and this library takes all three: the client version belongs in
-the base URL once rather than per operation, the operation is named in the request rather than the path,
-and Grouper's envelopes are worth flattening into small DTOs. Their `v2_5_000` is also where this
-library's default client version comes from — it is the version IU's deployment is known to accept.
+the base URL once rather than per operation, the operation names itself in the request body
+(`wsLiteObjectType`, or a `WsRest…Request` wrapper key), and Grouper's envelopes are worth flattening into
+small DTOs. Their `v2_5_000` is also where this library's default client version comes from — it is the
+version IU's deployment is known to accept.
 
 ## Verification status
 
@@ -235,9 +237,10 @@ Verification needs no application: this package has no first-party dependencies,
 calling it directly is the shortest path to the wire. **Do not route verification through `starter` or
 Docker** — every layer in between is somewhere a failure can hide.
 
-`.env.grouper.local.example` records the environment variables such a script needs. Copy it to
-`.env.grouper.local`, which the existing `*.env*` rule already gitignores — confirm with
-`git check-ignore -v .env.grouper.local` before putting a password in it.
+No credential template is tracked: the `*.env*` gitignore rule catches an `.example` file too. Keep the
+script's settings (the `GrouperConfiguration` fields — service URL, username, password, stem) in a local
+`.env.grouper.local`, and confirm it is ignored with `git check-ignore -v .env.grouper.local` before
+putting a password in it.
 
 ## Fixtures
 
@@ -267,7 +270,7 @@ feature branch  --PR-->  develop  --PR-->  main  --> tag (release)
 
 Consumers require tagged versions, so **"merged into `develop`" and "released" are two different
 states**. A consumer that cannot see your change has almost always hit exactly that. `guild/framework`
-requires `^0.1`, so a change reaches it only after a new tag is cut on `main` — merging to `develop` is
+requires `^0.1.2`, so a change reaches it only after a new tag is cut on `main` — merging to `develop` is
 not enough.
 
 For a local iteration loop, temporarily add a path repository to the consumer's `composer.json` above its

@@ -257,7 +257,7 @@ if ($candidates instanceof GrouperUnavailable) {
 | `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:roles:sys:acm:your-app-editors`), `displayName` (the full display path), `displayExtension` (the short label ACM shows, e.g. `Your App Editors`; derived from the last `displayName` segment if Grouper omits it), `uuid`, and an optional `description`. Match on `identifier` only — the display fields are mutable and not unique. |
 | `GrouperUnavailable` | **Returned, not thrown.** Grouper could not be reached; membership is unknown. Carries `reason`, an optional `statusCode`, and the optional underlying `previous` throwable. |
 | `GrouperConfigurationException` | **Thrown.** Extends `LogicException`. Bad configuration, or credentials Grouper rejected (401/403) — a deployment error a human must fix. |
-| `GrouperResponseException` | **Thrown.** Extends `RuntimeException`. Grouper answered with something unrecognisable, or reported `success="F"`. Carries Grouper's `resultCode` and `resultMessage`. |
+| `GrouperResponseException` | **Thrown.** Extends `RuntimeException`. Grouper answered with something unrecognisable, or reported `success="F"`. For a reported failure, the exception message includes Grouper's `resultCode` and `resultMessage`; there are no separate properties. |
 
 The rule behind that table: **conditions that may clear on their own are returned; conditions a human
 must fix are thrown.**
