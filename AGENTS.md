@@ -11,7 +11,7 @@ Consumed as a Composer dependency; not runnable on its own.
 - **PHP:** `~8.5.0`. This constraint is load-bearing — `guild/framework` requires `~8.5.0`, so a package
   that excludes 8.5 cannot be installed alongside it.
 - **Remote:** `https://github.com/nathanskky/guild-grouper.git`
-- **Default branch:** `develop`. **Current release: `v0.1.1`**, tagged on `main`.
+- **Default branch:** `develop`. **Current release: `v0.1.2`**, tagged on `main`.
 - **This package is pre-1.0 on purpose.** Every behaviour is verified against production Grouper, but the
   version stays `0.x` until a full code review has happened. Until then, treat minor releases as
   potentially breaking and consume it as `^0.1`.
