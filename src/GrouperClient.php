@@ -286,14 +286,29 @@ final readonly class GrouperClient
                 throw new GrouperResponseException("Grouper returned a group in {$key} with no name.");
             }
 
+            $displayName = $this->metadataString($group, 'displayName') ?? $name;
+
             $groups[] = new GrouperGroup(
                 identifier: $name,
-                displayName: $this->metadataString($group, 'displayName') ?? $name,
+                displayName: $displayName,
+                displayExtension: $this->metadataString($group, 'displayExtension')
+                    ?? $this->lastSegment($displayName),
                 uuid: $this->metadataString($group, 'uuid') ?? '',
                 description: $this->metadataString($group, 'description'),
             );
         }
 
         return $groups;
+    }
+
+    /**
+     * The final segment of a colon-delimited display path, which is what
+     * Grouper's displayExtension holds when it is present.
+     */
+    private function lastSegment(string $path): string
+    {
+        $position = strrpos($path, ':');
+
+        return $position === false ? $path : substr($path, $position + 1);
     }
 }

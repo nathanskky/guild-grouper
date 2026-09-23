@@ -11,7 +11,7 @@ Consumed as a Composer dependency; not runnable on its own.
 - **PHP:** `~8.5.0`. This constraint is load-bearing — `guild/framework` requires `~8.5.0`, so a package
   that excludes 8.5 cannot be installed alongside it.
 - **Remote:** `https://github.com/nathanskky/guild-grouper.git`
-- **Default branch:** `develop`. **Current release: `v0.1.0`**, tagged on `main`.
+- **Default branch:** `develop`. **Current release: `v0.1.1`**, tagged on `main`.
 - **This package is pre-1.0 on purpose.** Every behaviour is verified against production Grouper, but the
   version stays `0.x` until a full code review has happened. Until then, treat minor releases as
   potentially breaking and consume it as `^0.1`.
@@ -35,7 +35,7 @@ These repos are developed side by side but are **independent git repos**. There 
 |---|---|---|
 | `guild/grouper` *(this one)* | `Guild\Grouper\` | Grouper group-membership lookup |
 | `guild/access` | `Guild\Access\` | IU Login (OIDC) authentication. Independent of this package |
-| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1`, via VCS repo), though nothing in it consumes the client yet |
+| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1`, via VCS repo); its authorization layer is the only consumer |
 | `guild/starter` | `Guild\Starter\` | Runnable example app |
 | `guild/rivet` | `Guild\Rivet\` | IU Rivet Design System components. Independent |
 

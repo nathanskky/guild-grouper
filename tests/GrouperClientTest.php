@@ -111,8 +111,21 @@ final class GrouperClientTest extends TestCase
         self::assertCount(2, $result->groups);
         self::assertTrue($result->belongsTo('iu:apps:x:editors'));
         self::assertSame('Indiana University:Applications:X:Editors', $result->groups[0]->displayName);
+        self::assertSame('Editors', $result->groups[0]->displayExtension);
         self::assertSame('People who may edit content in X', $result->groups[0]->description);
         self::assertNull($result->groups[1]->description, 'description is optional on a WsGroup');
+    }
+
+    public function test_a_missing_display_extension_falls_back_to_the_last_display_name_segment(): void
+    {
+        $body = json_decode($this->fixture('membership-two-groups'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($body);
+        unset($body['WsGetGroupsLiteResult']['wsGroups'][0]['displayExtension']);
+
+        $result = $this->clientReturning(200, json_encode($body, JSON_THROW_ON_ERROR))->groupsFor('jdoe');
+
+        self::assertInstanceOf(GroupMembership::class, $result);
+        self::assertSame('Editors', $result->groups[0]->displayExtension, 'derived from displayName');
     }
 
     /**

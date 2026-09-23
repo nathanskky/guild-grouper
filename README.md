@@ -222,7 +222,7 @@ if ($exists instanceof GrouperUnavailable) {
 | Type | Meaning |
 |------|---------|
 | `GroupMembership` | A username and its `list<GrouperGroup>`. `belongsTo(string $identifier): bool` matches on the group's **system name**, not its display name. An empty list is valid. |
-| `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:roles:sys:acm:your-app-editors`), `displayName`, `uuid`, and an optional `description`. |
+| `GrouperGroup` | One group: `identifier` (the system name, e.g. `iu:roles:sys:acm:your-app-editors`), `displayName` (the full display path), `displayExtension` (the short label ACM shows, e.g. `Your App Editors`; derived from the last `displayName` segment if Grouper omits it), `uuid`, and an optional `description`. Match on `identifier` only — the display fields are mutable and not unique. |
 | `GrouperUnavailable` | **Returned, not thrown.** Grouper could not be reached; membership is unknown. Carries `reason`, an optional `statusCode`, and the optional underlying `previous` throwable. |
 | `GrouperConfigurationException` | **Thrown.** Extends `LogicException`. Bad configuration, or credentials Grouper rejected (401/403) — a deployment error a human must fix. |
 | `GrouperResponseException` | **Thrown.** Extends `RuntimeException`. Grouper answered with something unrecognisable, or reported `success="F"`. Carries Grouper's `resultCode` and `resultMessage`. |

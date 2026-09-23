@@ -33,7 +33,7 @@ final class GroupMembershipTest extends TestCase
     public function test_it_reports_membership_by_identifier(): void
     {
         $membership = new GroupMembership('jdoe', [
-            new GrouperGroup('iu:apps:x:editors', 'Editors', 'uuid-1', 'App editors'),
+            new GrouperGroup('iu:apps:x:editors', 'Editors', 'Editors', 'uuid-1', 'App editors'),
         ]);
 
         self::assertTrue($membership->belongsTo('iu:apps:x:editors'));
@@ -48,7 +48,7 @@ final class GroupMembershipTest extends TestCase
     public function test_it_does_not_match_on_display_name(): void
     {
         $membership = new GroupMembership('jdoe', [
-            new GrouperGroup('iu:apps:x:editors', 'Editors', 'uuid-1', 'App editors'),
+            new GrouperGroup('iu:apps:x:editors', 'Editors', 'Editors', 'uuid-1', 'App editors'),
         ]);
 
         self::assertFalse($membership->belongsTo('Editors'), 'only the system name identifies a group');
@@ -56,7 +56,7 @@ final class GroupMembershipTest extends TestCase
 
     public function test_group_description_is_optional(): void
     {
-        $group = new GrouperGroup('iu:apps:x:editors', 'Editors', 'uuid-1');
+        $group = new GrouperGroup('iu:apps:x:editors', 'Editors', 'Editors', 'uuid-1');
 
         self::assertNull($group->description, 'Grouper groups need not carry a description');
     }
