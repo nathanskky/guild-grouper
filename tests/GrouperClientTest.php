@@ -16,6 +16,7 @@ use Guild\Grouper\Exception\GrouperResponseException;
 use Guild\Grouper\GroupMembership;
 use Guild\Grouper\GrouperClient;
 use Guild\Grouper\GrouperConfiguration;
+use Guild\Grouper\GrouperGroup;
 use Guild\Grouper\GrouperUnavailable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -294,6 +295,79 @@ final class GrouperClientTest extends TestCase
         self::assertCount(2, $result->groups);
     }
 
+    // -- findByLabel -------------------------------------------------------
+
+    public function test_find_by_label_queries_find_groups_by_exact_display_extension(): void
+    {
+        $this->clientReturning(200, $this->fixture('group-found'))->findByLabel('Editors');
+
+        self::assertStringEndsWith('/v2_5_000/groups', $this->lastRequest()->getUri()->getPath());
+
+        $filter = $this->lastRequestJson()['WsRestFindGroupsRequest']['wsQueryFilter'] ?? [];
+
+        self::assertSame('FIND_BY_EXACT_ATTRIBUTE', $filter['queryFilterType'] ?? null);
+        self::assertSame('displayExtension', $filter['groupAttributeName'] ?? null);
+        self::assertSame('Editors', $filter['groupAttributeValue'] ?? null);
+        self::assertSame('iu:apps:x', $filter['stemName'] ?? null, 'the label search is scoped to the configured stem');
+        self::assertArrayNotHasKey('stemNameScope', $filter, 'production rejects stemNameScope on this filter with INVALID_QUERY');
+    }
+
+    public function test_find_by_label_returns_every_match_directly_under_the_stem(): void
+    {
+        $result = $this->clientReturning(200, $this->findGroupsBody([
+            'iu:apps:x:editors' => 'Editors',
+            'iu:apps:x:editors-too' => 'Editors',
+        ]))->findByLabel('Editors');
+
+        self::assertIsArray($result);
+        self::assertSame(
+            ['iu:apps:x:editors', 'iu:apps:x:editors-too'],
+            array_map(static fn (GrouperGroup $group): string => $group->identifier, $result),
+            'labels are not unique, so every candidate is returned for a person to choose from',
+        );
+    }
+
+    public function test_find_by_label_drops_matches_deeper_than_the_stem(): void
+    {
+        $result = $this->clientReturning(200, $this->findGroupsBody([
+            'iu:apps:x:editors' => 'Editors',
+            'iu:apps:x:sub:editors' => 'Editors',
+            'iu:apps:xy:editors' => 'Editors',
+        ]))->findByLabel('Editors');
+
+        self::assertIsArray($result);
+        self::assertSame(
+            ['iu:apps:x:editors'],
+            array_map(static fn (GrouperGroup $group): string => $group->identifier, $result),
+            'groupsFor() only sees one level below the stem, so a deeper group could never match',
+        );
+    }
+
+    public function test_find_by_label_returns_an_empty_list_when_nothing_matches(): void
+    {
+        $body = '{"WsFindGroupsResults":{"resultMetadata":{"success":"T","resultCode":"SUCCESS"}}}';
+
+        self::assertSame([], $this->clientReturning(200, $body)->findByLabel('Typo'));
+    }
+
+    public function test_find_by_label_returns_unavailable_on_a_server_error(): void
+    {
+        self::assertInstanceOf(GrouperUnavailable::class, $this->clientReturning(503, '')->findByLabel('Editors'));
+    }
+
+    public function test_an_unscoped_find_by_label_sends_no_stem_and_filters_nothing(): void
+    {
+        $result = $this->unscopedClientReturning(200, $this->findGroupsBody([
+            'iu:apps:x:sub:editors' => 'Editors',
+        ]))->findByLabel('Editors');
+
+        $filter = $this->lastRequestJson()['WsRestFindGroupsRequest']['wsQueryFilter'] ?? [];
+
+        self::assertArrayNotHasKey('stemName', $filter);
+        self::assertIsArray($result);
+        self::assertCount(1, $result, 'with no stem there is no depth to enforce');
+    }
+
     // -- groupExists -------------------------------------------------------
 
     public function test_group_exists_queries_find_groups_by_exact_name(): void
@@ -494,6 +568,23 @@ final class GrouperClientTest extends TestCase
 
         /** @var array<string, string> $parsed */
         return $parsed;
+    }
+
+    /**
+     * @param  array<string, string>  $groups  identifier => displayExtension
+     */
+    private function findGroupsBody(array $groups): string
+    {
+        $results = [];
+
+        foreach ($groups as $identifier => $label) {
+            $results[] = ['name' => $identifier, 'displayName' => 'IU:' . $label, 'displayExtension' => $label, 'uuid' => md5($identifier)];
+        }
+
+        return json_encode(['WsFindGroupsResults' => [
+            'resultMetadata' => ['success' => 'T', 'resultCode' => 'SUCCESS'],
+            'groupResults' => $results,
+        ]], JSON_THROW_ON_ERROR);
     }
 
     private function fixture(string $name): string

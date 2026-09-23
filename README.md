@@ -217,6 +217,38 @@ if ($exists instanceof GrouperUnavailable) {
 }
 ```
 
+## `findByLabel()`
+
+```php
+/** @return list<GrouperGroup>|GrouperUnavailable */
+public function findByLabel(string $displayExtension): array|GrouperUnavailable
+```
+
+The groups whose ACM label (`displayExtension`) is exactly the given string — for registering a group
+from the name an administrator actually sees in ACM. Sent as a JSON `WsRestFindGroupsRequest` with the
+`FIND_BY_EXACT_ATTRIBUTE` filter.
+
+**It returns a list** because labels are not unique: show every candidate with its `identifier` and let a
+person choose. An empty list means no such group; `GrouperUnavailable` means the answer is unknown and must
+not be shown as "no such group".
+
+**Only groups exactly one level below the configured stem are returned**, matching what `groupsFor()` can
+see. Grouper's label search covers the stem's whole subtree, and a deeper group registered as an
+authorization rule would never appear in anyone's membership. With no stem configured, nothing is
+filtered.
+
+```php
+$candidates = $client->findByLabel('Your App Editors');
+
+if ($candidates instanceof GrouperUnavailable) {
+    // Unknown — say the check could not be made.
+} elseif ($candidates === []) {
+    // No group with that label under the stem. Probably a typo.
+} else {
+    // One or more: store the chosen candidate's identifier.
+}
+```
+
 ## Return and error types
 
 | Type | Meaning |
@@ -235,7 +267,7 @@ deployment run indefinitely with an authorization layer that silently denies eve
 
 ### How outcomes map
 
-Both methods share the transport rules:
+All three methods share the transport rules:
 
 | Condition | Result |
 |---|---|
@@ -258,6 +290,14 @@ Both methods share the transport rules:
 |---|---|
 | `success="T"` with `groupResults` | `true` |
 | `success="T"` with no `groupResults` key | `false` — this is how Grouper reports "no such group" |
+| Any `success="F"` | throws `GrouperResponseException` |
+
+`findByLabel()` then adds:
+
+| Condition | Result |
+|---|---|
+| `success="T"` with `groupResults` | those one level below the stem — possibly none |
+| `success="T"` with no `groupResults` key | an empty list |
 | Any `success="F"` | throws `GrouperResponseException` |
 
 ### Unknown users

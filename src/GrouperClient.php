@@ -156,6 +156,60 @@ final readonly class GrouperClient
     }
 
     /**
+     * The groups in the configured stem whose ACM label (displayExtension) is
+     * exactly $displayExtension.
+     *
+     * For registering a group from the label an administrator sees in ACM.
+     * Labels are not unique, so this returns every match for a person to
+     * choose from; an empty list means no such group. GrouperUnavailable means
+     * the answer is unknown, which must not be shown as "no such group".
+     *
+     * @return list<GrouperGroup>|GrouperUnavailable
+     */
+    public function findByLabel(string $displayExtension): array|GrouperUnavailable
+    {
+        $filter = [
+            'queryFilterType' => 'FIND_BY_EXACT_ATTRIBUTE',
+            'groupAttributeName' => 'displayExtension',
+            'groupAttributeValue' => $displayExtension,
+        ];
+
+        // Verified against production: this filter accepts stemName but rejects
+        // stemNameScope with INVALID_QUERY, and stemName alone searches the
+        // whole subtree. groupsFor() only sees groups exactly one level below
+        // the stem, so a deeper match is dropped here: registering it would
+        // create a mapping that no membership lookup could ever match.
+        $stem = $this->config->stem;
+
+        if ($stem !== null) {
+            $filter['stemName'] = $stem;
+        }
+
+        $response = $this->post('groups', ['json' => [
+            self::FIND_GROUPS_REQUEST => ['wsQueryFilter' => $filter],
+        ]]);
+
+        if ($response instanceof GrouperUnavailable) {
+            return $response;
+        }
+
+        $result = $this->envelope((string) $response->getBody(), 'WsFindGroupsResults');
+        $this->assertSuccess($result);
+
+        $groups = $this->groupsFrom($result, 'groupResults');
+
+        if ($stem === null) {
+            return $groups;
+        }
+
+        return array_values(array_filter(
+            $groups,
+            static fn (GrouperGroup $group): bool => str_starts_with($group->identifier, $stem . ':')
+                && ! str_contains(substr($group->identifier, strlen($stem) + 1), ':'),
+        ));
+    }
+
+    /**
      * Issue one POST and classify the outcome.
      *
      * The split here is the library's central design decision. A condition that

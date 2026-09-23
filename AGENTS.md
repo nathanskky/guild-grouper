@@ -23,7 +23,7 @@ Group management happens in Grouper itself. Caching, and the policy for what an 
 Grouper is unreachable, both belong to the consumer — this library reports the condition and stops there.
 
 > **`README.md` is the authoritative reference for this library's public API** — configuration fields,
-> both methods, the return unions, and the full outcome table. Read it before touching
+> all three methods, the return unions, and the full outcome table. Read it before touching
 > `src/GrouperClient.php`. This file covers *developing* the package; the README covers *using* it.
 
 ## Sibling packages
@@ -112,8 +112,8 @@ These are the things about Grouper's API that are easy to get wrong. All of them
 in `GrouperClient`; keep them there.
 
 - **Grouper routes on URL path segments.** Each operation is *addressed*, not merely named in the body.
-  `groupsFor()` posts to `{version}/subjects/{subject}/groups`; `groupExists()` posts to
-  `{version}/groups`. Get it wrong and Grouper answers `INVALID_QUERY` telling you which segment it
+  `groupsFor()` posts to `{version}/subjects/{subject}/groups`; `groupExists()` and `findByLabel()` post
+  to `{version}/groups`. Get it wrong and Grouper answers `INVALID_QUERY` telling you which segment it
   expected — `/groups` wants a following `members` or `memberships`, `/subjects` wants `groups` or
   `memberships`. This cost a full round of live debugging; do not re-derive it.
 - **The two operations use different transports, and that is correct.** `groupsFor()` sends the
@@ -121,6 +121,10 @@ in `GrouperClient`; keep them there.
   and names itself in the wrapper key `WsRestFindGroupsRequest`. Both are verified against production.
   Do not "fix" the inconsistency by unifying them — the form-encoded shape does not work for findGroups,
   and that is how the bug that shipped in `groupExists()` originally happened.
+- **`FIND_BY_EXACT_ATTRIBUTE` rejects `stemNameScope`.** `findByLabel()` sends `stemName` alone; adding
+  `stemNameScope` (either value) makes production answer `400 INVALID_QUERY`. `stemName` alone searches
+  the **whole subtree**, unlike `groupsFor()`'s `ONE_LEVEL`, so `findByLabel()` drops matches deeper than
+  one level itself. Do not "restore" the scope parameter, and do not remove the depth filter.
 - **Success is signalled by `resultMetadata.success`**, a string `"T"`/`"F"`, **not by the HTTP status
   alone.** A 200 can carry a failure, and a 404 can carry a result you want (`SUBJECT_NOT_FOUND`).
   Never infer success from the status code.
@@ -209,6 +213,10 @@ library's default client version comes from — it is the version IU's deploymen
 | Nonexistent subject | `404`, `success="F"`, `SUBJECT_NOT_FOUND` — reported as an empty membership |
 | Nonexistent stem | `400`, `success="F"`, `INVALID_QUERY` / "Stem not found" |
 | Nonexistent group (findGroups) | `200`, `success="T"`, `groupResults` absent |
+| Label search (`FIND_BY_EXACT_ATTRIBUTE` on `displayExtension`) with `stemName` | `200`, the match; also found from the parent stem, so the search is subtree-wide |
+| Label search with `stemNameScope` added | `400`, `INVALID_QUERY` |
+| Label search with no stem | `200`, the match |
+| Label search, no such label | `200`, `success="T"`, `groupResults` absent |
 | Missing `wsLiteObjectType` | `500`, "Invalid POST request" |
 | Bogus client version | `200` and a correct result — the segment is not validated |
 
