@@ -32,12 +32,15 @@ use Psr\Http\Message\ResponseInterface;
  *     it comes from GrouperConfiguration::$clientVersion.
  *  4. **Grouper routes on URL path segments**, so each operation is addressed
  *     rather than named in the body. `groupsFor()` posts to
- *     `subjects/{subject}/groups`; `groupExists()` posts to `groups`. Posting
- *     to the wrong one is answered with INVALID_QUERY, not a 404.
- *  5. **The two operations use different transports**, which is genuinely how
- *     Grouper works rather than an inconsistency here. `groupsFor()` is the
- *     form-encoded Lite shape and names itself in `wsLiteObjectType`;
- *     `groupExists()` sends a JSON body and names itself in the wrapper key.
+ *     `subjects/{subject}/groups`; `groupExists()` and `findByLabel()` post to
+ *     `groups`. Posting to the wrong one is answered with INVALID_QUERY, not a
+ *     404.
+ *  5. **getGroups and findGroups use different transports**, which is
+ *     genuinely how Grouper works rather than an inconsistency here.
+ *     `groupsFor()` (getGroups) is the form-encoded Lite shape and names itself
+ *     in `wsLiteObjectType`; `groupExists()` and `findByLabel()` (findGroups)
+ *     send a JSON body and name themselves in the `WsRestFindGroupsRequest`
+ *     wrapper key.
  *
  * The published Swagger gives each operation its own version segment —
  * `getGroupsLite` at `v4_0_440`, `findGroupsLite` at `v4_0_330`. These are
