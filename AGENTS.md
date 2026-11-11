@@ -11,7 +11,7 @@ Consumed as a Composer dependency; not runnable on its own.
 - **PHP:** `~8.5.0`. This constraint is load-bearing — `guild/framework` requires `~8.5.0`, so a package
   that excludes 8.5 cannot be installed alongside it.
 - **Remote:** `https://github.com/nathanskky/guild-grouper.git`
-- **Default branch:** `develop`. **Current release: `v0.1.2`**, tagged on `main`.
+- **Default branch:** `develop`. **Current release: `v0.1.3`**, tagged on `main`.
 - **This package is pre-1.0 on purpose.** Every behaviour is verified against production Grouper, but the
   version stays `0.x` until a full code review has happened. Until then, treat minor releases as
   potentially breaking and consume it as `^0.1`.
@@ -35,7 +35,7 @@ These repos are developed side by side but are **independent git repos**. There 
 |---|---|---|
 | `guild/grouper` *(this one)* | `Guild\Grouper\` | Grouper group-membership lookup |
 | `guild/access` | `Guild\Access\` | IU Login (OIDC) authentication. Independent of this package |
-| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1.2`, via VCS repo) and exposes it through `addAuthorization()`; its authorization layer is the only consumer |
+| `guild/framework` | `Guild\Framework\` | Application kernel / DI container. **Requires this package** (`^0.1.3`, via VCS repo) and exposes it through `addAuthorization()`; its authorization layer is the only consumer |
 | `guild/starter` | `Guild\Starter\` | Runnable example app. Gets this package transitively through `guild/framework` |
 | `guild/rivet` | `Guild\Rivet\` | IU Rivet Design System components. Independent |
 | `iu/notifications` | `IU\Notifications\` | IU Notifications client. Independent |
@@ -273,7 +273,7 @@ feature branch  --PR-->  develop  --PR-->  main  --> tag (release)
 
 Consumers require tagged versions, so **"merged into `develop`" and "released" are two different
 states**. A consumer that cannot see your change has almost always hit exactly that. `guild/framework`
-requires `^0.1.2`, so a change reaches it only after a new tag is cut on `main` — merging to `develop` is
+requires `^0.1.3`, so a change reaches it only after a new tag is cut on `main` — merging to `develop` is
 not enough.
 
 For a local iteration loop, temporarily add a path repository to the consumer's `composer.json` above its
