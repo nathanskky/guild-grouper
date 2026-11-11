@@ -73,12 +73,15 @@ src/
 ├── GrouperGroup.php           final readonly · one group, flattened from WsGroup
 ├── GroupMembership.php        final readonly · a username + its groups
 ├── GrouperUnavailable.php     final readonly · a returned value, NOT a Throwable
-└── Exception/
-    ├── GrouperConfigurationException.php   final · extends LogicException
-    └── GrouperResponseException.php        final · extends RuntimeException
+├── Exception/
+│   ├── GrouperConfigurationException.php   final · extends LogicException
+│   └── GrouperResponseException.php        final · extends RuntimeException
+└── Testing/
+    └── FakeGrouper.php        final · a real GrouperClient over Guzzle's MockHandler, for consumers' tests
 ```
 
-Layout is **flat**. There are seven classes and no reason for a directory tree; do not add one.
+Layout is **flat** apart from `Exception/` and `Testing/`; do not add further directories. `Testing/` holds
+test support that ships in autoload so consumers' tests share one copy. Production code never reaches it.
 
 **The single design decision everything else follows from:** conditions that may clear on their own are
 **returned**; conditions a human must fix are **thrown**.

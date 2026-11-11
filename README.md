@@ -317,6 +317,33 @@ identity source before asking Grouper about it.
 Every *other* failure code still throws. A stem that does not exist answers `400 INVALID_QUERY`
 ("Stem not found"), which is a misconfiguration somebody must fix, not a user with no groups.
 
+## Testing your application
+
+`Guild\Grouper\Testing\FakeGrouper` is a real `GrouperClient` over Guzzle's `MockHandler`. Give it the
+responses Grouper should send, in order, and hand its `client` to the code under test:
+
+```php
+use Guild\Grouper\Testing\FakeGrouper;
+
+$grouper = new FakeGrouper([
+    FakeGrouper::membership(['iu:roles:sys:acm:x-editors' => 'X Editors']),
+]);
+
+$result = $grouper->client->groupsFor('jdoe');   // GroupMembership with one group
+$grouper->requestCount();                         // 1
+```
+
+The response helpers:
+
+- `membership([identifier => label, ...])`: a successful `groupsFor()` answer
+- `labelMatches([identifier => label, ...])`: a successful `findByLabel()` or `groupExists()` answer
+- `subjectNotFound()`: an unknown username, read as an empty membership
+- `unavailable()`: a 503, read as `GrouperUnavailable`
+- `rejectedCredentials()`: a 401, thrown as `GrouperConfigurationException`
+
+`findByLabel()` keeps only groups one level below the configured stem, which defaults to
+`iu:roles:sys:acm`, so give `labelMatches()` identifiers under it.
+
 ## Not in scope
 
 - **Caching.** Every call hits Grouper. Caching policy belongs to the consumer.
