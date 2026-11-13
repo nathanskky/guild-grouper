@@ -65,7 +65,15 @@ final readonly class GrouperClient
      */
     private const string STEM_SCOPE = 'ONE_LEVEL';
 
-    /** getGroupsLite — the groups a subject belongs to. */
+    /**
+     * getGroupsLite — the groups a subject belongs to.
+     *
+     * The form-encoded shape requires wsLiteObjectType: without it Grouper
+     * answers 500 "Invalid POST request". The Swagger gives every Lite operation
+     * the same value, WsRestFindGroupsLiteRequest, so it can't be trusted; this
+     * is the value the operation's own request class implies. If a live call is
+     * answered by the wrong operation, suspect this string.
+     */
     private const string GET_GROUPS_OBJECT_TYPE = 'WsRestGetGroupsLiteRequest';
 
     /** findGroups — group lookup by name, sent as a JSON body. */
@@ -81,7 +89,12 @@ final readonly class GrouperClient
      * The groups $username belongs to within the configured stem.
      *
      * Returns an empty GroupMembership when the user belongs to nothing — that
-     * is a successful answer. GrouperUnavailable means the answer is unknown.
+     * is a successful answer — and when Grouper doesn't know the username at all.
+     * GrouperUnavailable means the answer is unknown.
+     *
+     * @throws GrouperConfigurationException if Grouper rejects the service account
+     * @throws GrouperResponseException if Grouper's answer is unrecognised or reports failure,
+     *     including a stem that doesn't exist
      */
     public function groupsFor(string $username): GroupMembership|GrouperUnavailable
     {
@@ -131,6 +144,12 @@ final readonly class GrouperClient
      * not folded into `false` — "this group does not exist" and "I could not
      * ask" would otherwise be indistinguishable, and only one of them should
      * make an administrator go fix something.
+     *
+     * @param string $identifier The group's full system name, such as `iu:roles:sys:acm:x-editors`.
+     *     The configured stem isn't applied.
+     *
+     * @throws GrouperConfigurationException if Grouper rejects the service account
+     * @throws GrouperResponseException if Grouper's answer is unrecognised or reports failure
      */
     public function groupExists(string $identifier): bool|GrouperUnavailable
     {
@@ -167,7 +186,13 @@ final readonly class GrouperClient
      * choose from; an empty list means no such group. GrouperUnavailable means
      * the answer is unknown, which must not be shown as "no such group".
      *
+     * Only groups exactly one level below the stem are returned, because those
+     * are the only ones groupsFor() can see. With no stem, every match is.
+     *
      * @return list<GrouperGroup>|GrouperUnavailable
+     *
+     * @throws GrouperConfigurationException if Grouper rejects the service account
+     * @throws GrouperResponseException if Grouper's answer is unrecognised or reports failure
      */
     public function findByLabel(string $displayExtension): array|GrouperUnavailable
     {
